@@ -6,7 +6,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)](https://www.typescriptlang.org/)
 [![Vercel AI SDK](https://img.shields.io/badge/Vercel%20AI%20SDK-3-purple)](https://sdk.vercel.ai/)
 
-Oh My Sage 是一个 Web 界面的工具驱动 AI Agent，通过自然语言对话帮助你连接小米中枢网关、查看设备、创建和管理米家自动化极客版规则。项目目标是打包为飞牛 fnOS Native 应用 FPK。
+Oh My Sage 是一个 Web 界面的工具驱动 AI Agent，通过自然语言对话帮助你连接小米中枢网关、查看设备、创建和管理米家自动化极客版规则。可实现免手机登录极客版，利用接口模拟设备发送请求，获取验证码。这样就不用拿手机在app获取中枢网关了，直接在浏览器插入验证码即可登录
 
 ---
 
