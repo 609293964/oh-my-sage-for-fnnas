@@ -55,8 +55,8 @@ interface SessionIndex {
 export class SessionStore {
     private baseDir: string;
 
-    constructor(baseDir: string = '.sessionstore') {
-        this.baseDir = path.resolve(process.cwd(), baseDir);
+    constructor(baseDir: string = process.env.SESSION_STORE_DIR || '.sessionstore') {
+        this.baseDir = path.isAbsolute(baseDir) ? baseDir : path.resolve(process.cwd(), baseDir);
         this.ensureDir();
     }
 

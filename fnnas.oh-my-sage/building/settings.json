@@ -1,0 +1,7 @@
+{
+  "platform": false,
+  "server": "app/server/",
+  "download": false,
+  "uspace": false,
+  "platforms": []
+}

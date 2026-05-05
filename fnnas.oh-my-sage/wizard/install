@@ -1,0 +1,103 @@
+[
+  {
+    "stepTitle": "智能家居 AI 配置",
+    "items": [
+      {
+        "type": "tips",
+        "field": "wizard_default",
+        "label": "示例项",
+        "rules": [],
+        "options": [],
+        "helpText": "这些配置会写入应用运行配置，可安装后在应用设置中修改。"
+      },
+      {
+        "type": "text",
+        "field": "wizard_llm_base_url",
+        "label": "LLM 接口地址",
+        "rules": [
+          {
+            "required": false,
+            "message": "请输入 LLM 接口地址"
+          },
+          {
+            "pattern": "^https?://.+",
+            "message": "请输入 http:// 或 https:// 开头的接口地址"
+          }
+        ],
+        "options": [],
+        "initValue": "https://api.openai.com/v1"
+      },
+      {
+        "type": "password",
+        "field": "wizard_llm_api_key",
+        "label": "LLM API Key（可稍后填写）",
+        "rules": [],
+        "options": []
+      },
+      {
+        "type": "text",
+        "field": "wizard_llm_model",
+        "label": "LLM 模型",
+        "rules": [
+          {
+            "required": false,
+            "message": "请输入 LLM 模型名称"
+          }
+        ],
+        "options": [],
+        "initValue": "gpt-5.5"
+      },
+      {
+        "type": "text",
+        "field": "wizard_llm_temperature",
+        "label": "温度",
+        "rules": [
+          {
+            "required": false,
+            "message": "请输入温度"
+          },
+          {
+            "pattern": "^(0(\\.\\d+)?|1(\\.0+)?)$",
+            "message": "请输入 0 到 1 之间的数字"
+          }
+        ],
+        "options": [],
+        "initValue": "0.7"
+      },
+      {
+        "type": "text",
+        "field": "wizard_app_port",
+        "label": "应用访问端口",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入应用访问端口"
+          },
+          {
+            "pattern": "^([1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$",
+            "message": "请输入 1 到 65535 之间的端口号"
+          }
+        ],
+        "options": [],
+        "initValue": "3000"
+      },
+      {
+        "type": "text",
+        "field": "wizard_gateway_host",
+        "label": "米家网关 IP 地址",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入米家网关 IP 地址"
+          },
+          {
+            "pattern": "^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$",
+            "message": "请输入 IPv4 地址，例如 192.168.0.5"
+          }
+        ],
+        "options": [],
+        "initValue": "192.168.x.x"
+      }
+    ]
+  }
+]

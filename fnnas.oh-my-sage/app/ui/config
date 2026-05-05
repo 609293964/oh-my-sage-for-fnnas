@@ -1,0 +1,18 @@
+{
+  ".url": {
+    "fnnas.oh-my-sage.Application": {
+      "noDisplay": false,
+      "allUsers": true,
+      "fileTypes": [],
+      "control": {
+        "accessPerm": "readonly"
+      },
+      "protocol": "http",
+      "title": "米家极客版AI",
+      "icon": "images/icon_{0}.png",
+      "type": "url",
+      "port": "${wizard_app_port}",
+      "url": "/"
+    }
+  }
+}

@@ -1,10 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // 服务器端外部包
-  serverExternalPackages: ['ws', 'elliptic', 'bn.js'],
-  
+  // 输出可独立运行的 Node.js 服务，便于复制到飞牛 Native 应用包
+  output: 'standalone',
+
   // 实验性功能
   experimental: {
+    // 服务器端外部包
+    serverComponentsExternalPackages: ['ws', 'elliptic', 'bn.js'],
+
     // 启用服务器操作
     serverActions: {
       bodySizeLimit: '2mb',
@@ -24,11 +27,6 @@ const nextConfig = {
       };
     }
     return config;
-  },
-  
-  // 环境变量
-  env: {
-    GATEWAY_URL: process.env.GATEWAY_URL || 'http://192.168.0.5',
   },
 };
 

@@ -1,0 +1,162 @@
+#!/bin/bash
+
+LOG_FILE="${TRIM_PKGVAR}/oh-my-sage.log"
+PID_FILE="${TRIM_PKGVAR}/oh-my-sage.pid"
+CONFIG_FILE="${TRIM_PKGETC}/oh-my-sage.env"
+DEFAULT_CONFIG="${TRIM_APPDEST}/config/oh-my-sage.env.example"
+APP_SERVER_DIR="${TRIM_APPDEST}/server"
+APP_PORT="${TRIM_SERVICE_PORT:-3000}"
+
+export PATH=/var/apps/nodejs_v22/target/bin:$PATH
+
+log_msg() {
+    mkdir -p "${TRIM_PKGVAR}"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "${LOG_FILE}"
+}
+
+write_temp_log() {
+    if [ -n "${TRIM_TEMP_LOGFILE}" ]; then
+        echo "$1" >> "${TRIM_TEMP_LOGFILE}"
+    fi
+}
+
+tail_log_to_temp() {
+    if [ -n "${TRIM_TEMP_LOGFILE}" ] && [ -f "${LOG_FILE}" ]; then
+        {
+            echo "---- ${LOG_FILE} tail ----"
+            tail -n 120 "${LOG_FILE}"
+            echo "---- end ----"
+        } >> "${TRIM_TEMP_LOGFILE}"
+    fi
+}
+
+ensure_config() {
+    mkdir -p "${TRIM_PKGETC}" "${TRIM_PKGVAR}" "${TRIM_PKGTMP}"
+
+    if [ ! -f "${CONFIG_FILE}" ] && [ -f "${DEFAULT_CONFIG}" ]; then
+        cp "${DEFAULT_CONFIG}" "${CONFIG_FILE}"
+        chmod 600 "${CONFIG_FILE}" 2>/dev/null || true
+    fi
+}
+
+load_config() {
+    if [ -f "${CONFIG_FILE}" ]; then
+        set -a
+        . "${CONFIG_FILE}"
+        set +a
+    fi
+}
+
+check_process() {
+    local pid=$1
+    kill -0 "${pid}" 2>/dev/null
+}
+
+status_process() {
+    if [ -f "${PID_FILE}" ]; then
+        pid=$(head -n 1 "${PID_FILE}" | tr -d '[:space:]')
+        if [ -n "${pid}" ] && check_process "${pid}"; then
+            return 0
+        fi
+        log_msg "Process is not running; removing stale pid file"
+        tail_log_to_temp
+        rm -f "${PID_FILE}"
+    fi
+
+    return 1
+}
+
+start_process() {
+    ensure_config
+    load_config
+    APP_PORT="${APP_PORT:-3000}"
+
+    if status_process; then
+        log_msg "Process already running"
+        return 0
+    fi
+
+    if [ ! -f "${APP_SERVER_DIR}/server.js" ]; then
+        log_msg "Missing ${APP_SERVER_DIR}/server.js. Run npm run build && npm run prepare:fpk before packaging."
+        write_temp_log "Missing app server files."
+        return 1
+    fi
+
+    if ! command -v node >/dev/null 2>&1; then
+        log_msg "Node.js runtime not found in PATH=${PATH}"
+        write_temp_log "Node.js runtime not found. Please make sure the nodejs_v22 dependency is installed."
+        return 1
+    fi
+
+    log_msg "Starting Oh My Sage on port ${APP_PORT}; node=$(command -v node); version=$(node --version 2>&1)"
+    cd "${APP_SERVER_DIR}" || {
+        log_msg "Unable to enter ${APP_SERVER_DIR}"
+        write_temp_log "Unable to enter app server directory: ${APP_SERVER_DIR}"
+        return 1
+    }
+
+    PORT="${APP_PORT}" \
+    HOSTNAME="0.0.0.0" \
+    SESSION_STORE_DIR="${TRIM_PKGVAR}/sessionstore" \
+    APP_CONFIG_FILE="${CONFIG_FILE}" \
+    nohup node "${APP_SERVER_DIR}/server.js" >> "${LOG_FILE}" 2>&1 &
+
+    pid=$!
+    printf "%s" "${pid}" > "${PID_FILE}"
+    sleep 3
+
+    if ! check_process "${pid}"; then
+        log_msg "Process exited during startup"
+        write_temp_log "Oh My Sage exited during startup. See ${LOG_FILE} for details."
+        tail_log_to_temp
+        rm -f "${PID_FILE}"
+        return 1
+    fi
+
+    log_msg "Started Oh My Sage with PID ${pid}"
+    return 0
+}
+
+stop_process() {
+    log_msg "Stopping Oh My Sage"
+
+    if [ -r "${PID_FILE}" ]; then
+        pid=$(head -n 1 "${PID_FILE}" | tr -d '[:space:]')
+        if [ -n "${pid}" ] && check_process "${pid}"; then
+            kill -TERM "${pid}" >> "${LOG_FILE}" 2>&1
+
+            count=0
+            while check_process "${pid}" && [ "${count}" -lt 10 ]; do
+                sleep 1
+                count=$((count + 1))
+            done
+
+            if check_process "${pid}"; then
+                kill -KILL "${pid}" >> "${LOG_FILE}" 2>&1
+            fi
+        fi
+        rm -f "${PID_FILE}"
+    fi
+
+    return 0
+}
+
+case "$1" in
+    start)
+        start_process
+        ;;
+    stop)
+        stop_process
+        ;;
+    status)
+        if status_process; then
+            exit 0
+        else
+            exit 3
+        fi
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|status}"
+        exit 1
+        ;;
+esac

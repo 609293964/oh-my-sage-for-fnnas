@@ -10,6 +10,7 @@ import {getModelConfigFromEnv} from '@/server/ai/model';
 import {getSessionStore} from '@/server/session/store';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/chat

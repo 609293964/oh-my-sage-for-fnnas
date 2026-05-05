@@ -7,6 +7,7 @@ import {NextRequest, NextResponse} from 'next/server';
 import {getSessionStore} from '@/server/session/store';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/sessions

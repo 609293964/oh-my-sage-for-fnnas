@@ -1,0 +1,92 @@
+[
+  {
+    "stepTitle": "接口配置",
+    "items": [
+      {
+        "type": "tips",
+        "helpText": "保存后应用会自动重启以加载新的接口配置。LLM API Key 留空时会保留现有值。"
+      },
+      {
+        "type": "text",
+        "field": "wizard_llm_base_url",
+        "label": "LLM 接口地址",
+        "initValue": "https://api.openai.com/v1",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入 LLM 接口地址"
+          },
+          {
+            "pattern": "^https?://.+",
+            "message": "请输入 http:// 或 https:// 开头的接口地址"
+          }
+        ]
+      },
+      {
+        "type": "password",
+        "field": "wizard_llm_api_key",
+        "label": "LLM API Key（留空保持不变）"
+      },
+      {
+        "type": "text",
+        "field": "wizard_llm_model",
+        "label": "LLM 模型",
+        "initValue": "gpt-4o",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入 LLM 模型名称"
+          }
+        ]
+      },
+      {
+        "type": "text",
+        "field": "wizard_llm_temperature",
+        "label": "温度",
+        "initValue": "0.7",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入温度"
+          },
+          {
+            "pattern": "^(0(\\.\\d+)?|1(\\.0+)?)$",
+            "message": "请输入 0 到 1 之间的数字"
+          }
+        ]
+      },
+      {
+        "type": "text",
+        "field": "wizard_app_port",
+        "label": "应用访问端口",
+        "initValue": "3000",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入应用访问端口"
+          },
+          {
+            "pattern": "^([1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$",
+            "message": "请输入 1 到 65535 之间的端口号"
+          }
+        ]
+      },
+      {
+        "type": "text",
+        "field": "wizard_gateway_host",
+        "label": "米家网关 IP 地址",
+        "initValue": "192.168.0.5",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入米家网关 IP 地址"
+          },
+          {
+            "pattern": "^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$",
+            "message": "请输入 IPv4 地址，例如 192.168.0.5"
+          }
+        ]
+      }
+    ]
+  }
+]

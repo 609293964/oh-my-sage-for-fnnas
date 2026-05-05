@@ -7,6 +7,7 @@ import {NextRequest, NextResponse} from 'next/server';
 import {connectGateway} from '@/server/gateway/shared';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/auth

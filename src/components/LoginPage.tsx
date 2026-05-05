@@ -2,7 +2,8 @@
 
 import React, {useState, useCallback, useRef} from 'react';
 import {Input, Button, message, Typography} from 'antd';
-import {RobotOutlined, LockOutlined, ThunderboltFilled} from '@ant-design/icons';
+import {LockOutlined, ThunderboltFilled} from '@ant-design/icons';
+import PasscodeCapturePanel from '@/components/PasscodeCapturePanel';
 
 const {Text} = Typography;
 
@@ -49,11 +50,18 @@ export default function LoginPage({onLoginSuccess}: LoginPageProps) {
         }
     };
 
+    const handleInsertPasscode = useCallback((code: string) => {
+        const value = code.replace(/\D/g, '').slice(0, 6);
+        setPasscode(value);
+        message.success('验证码已插入');
+    }, []);
+
     return (
         <div style={{
-            height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center',
+            minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center',
             background: 'var(--bg-deep)',
-            position: 'relative', overflow: 'hidden',
+            position: 'relative', overflow: 'auto',
+            padding: 24,
         }}>
             {/* 动态背景光效 */}
             <div style={{
@@ -77,7 +85,7 @@ export default function LoginPage({onLoginSuccess}: LoginPageProps) {
             <div
                 className="glass-panel"
                 style={{
-                    width: 380, padding: '40px 36px',
+                    width: 460, maxWidth: '100%', padding: '36px 32px',
                     borderRadius: 'var(--radius-xl)',
                     textAlign: 'center',
                     position: 'relative', zIndex: 1,
@@ -123,6 +131,7 @@ export default function LoginPage({onLoginSuccess}: LoginPageProps) {
                     <Text style={{color: 'var(--text-muted)', fontSize: 11, marginTop: 8, display: 'block'}}>
                         输入 6 位后自动连接
                     </Text>
+                    <PasscodeCapturePanel disabled={loading} onInsert={handleInsertPasscode}/>
                 </div>
 
                 <Button
