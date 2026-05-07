@@ -58,7 +58,7 @@ Oh My Sage 是一个 Web 界面的工具驱动 AI Agent，通过自然语言对�
    - `LLM_MODEL`：模型名称，例如 `gpt-4o`、`deepseek-chat`。
    - `LLM_TEMPERATURE`：生成温度，默认 `0.7`。
 3. 填写应用端口，默认是 `3000`。如果端口被占用，可以改成其他端口，例如 `3100`。
-4. 填写网关地址时只填 IP，例如 `192.168.0.5`，不要填写 `http://`、`https://` 或路径。安装脚本会自动生成 `GATEWAY_URL=http://IP`。
+4. 选择中枢版本并填写网关 IP，例如 `192.168.0.5`，不要填写 `http://`、`https://`、端口或路径。实体版中枢会自动生成 `GATEWAY_URL=http://IP`，路由器版中枢会自动生成 `GATEWAY_URL=http://IP:8086`。
 5. 安装完成后启用应用，从 fnOS 应用入口打开 Oh My Sage，或访问 `http://<fnOS地址>:<应用端口>/`。
 
 ### 首次使用
@@ -72,7 +72,7 @@ Oh My Sage 是一个 Web 界面的工具驱动 AI Agent，通过自然语言对�
 
 ### 修改设置
 
-安装后可以在 fnOS 的应用设置中修改 LLM 配置、应用端口和网关 IP。设置保存后，如果应用正在运行，脚本会自动重启服务让新配置生效。
+安装后可以在 fnOS 的应用设置中修改 LLM 配置、应用端口、中枢版本和网关 IP。设置保存后，如果应用正在运行，脚本会自动重启服务让新配置生效。
 
 应用配置会写入 `${TRIM_PKGETC}/oh-my-sage.env`，会话数据保存在 `${TRIM_PKGVAR}/sessionstore`。启动日志写入 `${TRIM_PKGVAR}/oh-my-sage.log`，启动失败时也会把关键错误同步到 fnOS 应用中心显示的错误日志。
 
@@ -80,7 +80,7 @@ Oh My Sage 是一个 Web 界面的工具驱动 AI Agent，通过自然语言对�
 
 - **无法启用，提示 Node.js runtime not found**：在 fnOS 应用中心卸载并重新安装 **Node.js v22**，然后重新启用 Oh My Sage。
 - **页面打不开**：确认安装向导中的应用端口没有被其他应用占用，并检查 fnOS 防火墙或反向代理设置。
-- **网关连接失败**：确认 fnOS 和小米中枢网关在同一局域网，网关 IP 填写的是纯 IP，登录码仍然有效。
+- **网关连接失败**：确认 fnOS 和小米中枢网关在同一局域网，中枢版本选择正确，网关 IP 填写的是纯 IP，登录码仍然有效。
 - **HAR 未识别出登录码请求**：确认抓包中包含 `POST https://core.api.mijia.tech/app/home/rpc/...` 或其他 `mijia.tech`/`api.io.mi.com` 的米家极客版登录码请求。
 - **LLM 无响应**：确认 `LLM_BASE_URL`、`LLM_API_KEY` 和 `LLM_MODEL` 与所使用的服务商一致。
 

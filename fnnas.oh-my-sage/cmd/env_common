@@ -20,12 +20,50 @@ gateway_host_from_url() {
     printf "%s" "${value}"
 }
 
-gateway_url_from_host() {
+gateway_type_from_url() {
     local value="$1"
     value="${value#http://}"
     value="${value#https://}"
     value="${value%%/*}"
-    printf "http://%s" "${value}"
+
+    case "${value}" in
+        *:8086)
+            printf "router"
+            ;;
+        *)
+            printf "physical"
+            ;;
+    esac
+}
+
+normalize_gateway_type() {
+    case "$1" in
+        router)
+            printf "router"
+            ;;
+        *)
+            printf "physical"
+            ;;
+    esac
+}
+
+gateway_url_from_host_and_type() {
+    local host="$1"
+    local type="$2"
+
+    host="${host#http://}"
+    host="${host#https://}"
+    host="${host%%/*}"
+    host="${host%%:*}"
+
+    case "${type}" in
+        router)
+            printf "http://%s:8086" "${host}"
+            ;;
+        physical|*)
+            printf "http://%s" "${host}"
+            ;;
+    esac
 }
 
 prepare_config_dir() {
@@ -53,8 +91,10 @@ write_oh_my_sage_env() {
     local llm_model="${wizard_llm_model:-${LLM_MODEL:-gpt-4o}}"
     local llm_temperature="${wizard_llm_temperature:-${LLM_TEMPERATURE:-0.7}}"
     local existing_gateway_host="${GATEWAY_HOST:-$(gateway_host_from_url "${GATEWAY_URL:-http://192.168.0.5}")}"
+    local existing_gateway_type="${GATEWAY_TYPE:-$(gateway_type_from_url "${GATEWAY_URL:-http://192.168.0.5}")}"
     local gateway_host="${wizard_gateway_host:-${existing_gateway_host:-192.168.0.5}}"
-    local gateway_url="$(gateway_url_from_host "${gateway_host}")"
+    local gateway_type="$(normalize_gateway_type "${wizard_gateway_type:-${existing_gateway_type:-physical}}")"
+    local gateway_url="$(gateway_url_from_host_and_type "${gateway_host}" "${gateway_type}")"
     local app_port="${wizard_app_port:-${APP_PORT:-3000}}"
     local tmp_file="${CONFIG_FILE}.tmp"
 
@@ -66,6 +106,7 @@ LLM_MODEL=$(shell_quote "${llm_model}")
 LLM_TEMPERATURE=$(shell_quote "${llm_temperature}")
 APP_PORT=$(shell_quote "${app_port}")
 GATEWAY_HOST=$(shell_quote "${gateway_host}")
+GATEWAY_TYPE=$(shell_quote "${gateway_type}")
 GATEWAY_URL=$(shell_quote "${gateway_url}")
 EOF
 
