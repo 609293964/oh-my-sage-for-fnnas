@@ -362,12 +362,20 @@ export default function PasscodeCapturePanel({disabled, onInsert}: PasscodeCaptu
                                     onChange={event => updateConfig('originFrom', event.target.value)}
                                 />
                             </div>
-                            <Input
-                                size="small"
-                                placeholder="X-XIAOMI-PROTOCAL-FLAG-CLI"
-                                value={config.xiaomiProtocolFlagCli}
-                                onChange={event => updateConfig('xiaomiProtocolFlagCli', event.target.value)}
-                            />
+                            <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8}}>
+                                <Input
+                                    size="small"
+                                    placeholder="X-XIAOMI-PROTOCAL-FLAG-CLI"
+                                    value={config.xiaomiProtocolFlagCli}
+                                    onChange={event => updateConfig('xiaomiProtocolFlagCli', event.target.value)}
+                                />
+                                <Input
+                                    size="small"
+                                    placeholder="MIOT-REQUEST-MODEL"
+                                    value={config.miotRequestModel}
+                                    onChange={event => updateConfig('miotRequestModel', event.target.value)}
+                                />
+                            </div>
                             <Button
                                 size="small"
                                 type="primary"

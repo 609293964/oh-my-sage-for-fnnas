@@ -55,7 +55,6 @@ function appendHeaderIfPresent(headers: Headers, name: string, value: string): v
 function buildProxyHeaders(config: MijiaPasscodeRequestConfig, targetUrl: URL): Headers {
     const headers = new Headers({
         'domain-refer': targetUrl.host,
-        'MIOT-REQUEST-MODEL': 'xiaomi.gateway.hub1',
     });
 
     appendHeaderIfPresent(headers, 'Accept', config.accept);
@@ -66,6 +65,7 @@ function buildProxyHeaders(config: MijiaPasscodeRequestConfig, targetUrl: URL): 
     appendHeaderIfPresent(headers, 'operate-common', config.operateCommon);
     appendHeaderIfPresent(headers, 'Origin-From', config.originFrom);
     appendHeaderIfPresent(headers, 'X-XIAOMI-PROTOCAL-FLAG-CLI', config.xiaomiProtocolFlagCli);
+    appendHeaderIfPresent(headers, 'MIOT-REQUEST-MODEL', config.miotRequestModel);
 
     return headers;
 }
