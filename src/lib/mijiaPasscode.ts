@@ -11,6 +11,7 @@ export interface MijiaPasscodeRequestConfig {
     operateCommon: string;
     originFrom: string;
     xiaomiProtocolFlagCli: string;
+    miotRequestModel: string;
 }
 
 export interface MijiaPasscodeParseResult {
@@ -41,6 +42,7 @@ export const defaultMijiaPasscodeRequestConfig: MijiaPasscodeRequestConfig = {
     operateCommon: '',
     originFrom: '',
     xiaomiProtocolFlagCli: '',
+    miotRequestModel: 'xiaomi.gateway.hub1',
 };
 
 const passcodeKeys = ['passcode', 'passwd', 'password', 'pwd'];
@@ -305,13 +307,19 @@ function parseCurlToConfig(text: string): MijiaPasscodeParseResult {
         operateCommon: readCurlHeader(request.headers, 'operate-common'),
         originFrom: readCurlHeader(request.headers, 'Origin-From'),
         xiaomiProtocolFlagCli: readCurlHeader(request.headers, 'X-XIAOMI-PROTOCAL-FLAG-CLI'),
+        miotRequestModel: readCurlHeader(request.headers, 'MIOT-REQUEST-MODEL') || defaultMijiaPasscodeRequestConfig.miotRequestModel,
     });
+    const found = isMijiaUrl(request.url) && Boolean(requestBody) && requestKind === 'passcode';
 
     return {
         config,
-        found: isMijiaUrl(request.url) && Boolean(requestBody) && (requestKind === 'passcode' || isRpc),
-        matchedRequestCount: 1,
-        message: '已从 CURL 文本中识别请求参数',
+        found,
+        matchedRequestCount: found ? 1 : 0,
+        message: found
+            ? '已从 CURL 文本中识别登录码请求参数'
+            : isRpc
+                ? '已从 CURL 文本中解析 RPC 请求，但未识别到登录码方法'
+                : '已从 CURL 文本中识别请求参数',
         source: 'curl',
     };
 }
@@ -356,14 +364,14 @@ export function parseMijiaPasscodeCaptureText(text: string): MijiaPasscodeParseR
         nextConfig.operateCommon = readHarHeader(request.headers, 'operate-common') || nextConfig.operateCommon;
         nextConfig.originFrom = readHarHeader(request.headers, 'Origin-From') || nextConfig.originFrom;
         nextConfig.xiaomiProtocolFlagCli = readHarHeader(request.headers, 'X-XIAOMI-PROTOCAL-FLAG-CLI') || nextConfig.xiaomiProtocolFlagCli;
+        nextConfig.miotRequestModel = readHarHeader(request.headers, 'MIOT-REQUEST-MODEL') || nextConfig.miotRequestModel;
 
         if (readString(request, 'method').toUpperCase() !== 'POST') continue;
         const postText = getHarPostText(request.postData);
         if (!postText) continue;
 
         const requestKind = detectRequestKind(postText);
-        const isRpc = url.includes('/app/home/rpc');
-        if (requestKind === 'passcode' || isRpc) {
+        if (requestKind === 'passcode') {
             foundPasscode = true;
             matchedRequestCount += 1;
             nextConfig.requestUrl = url;
