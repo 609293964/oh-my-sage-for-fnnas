@@ -6,7 +6,7 @@
 import { GatewayClient } from '@/core/gateway/client';
 import { createGatewayManager, type GatewayManager } from '@/core/gateway/manager';
 
-const globalKey = '__oh_my_sage_gateway_manager__';
+const globalKey = '__mijia_geek_ai_gateway_manager__';
 
 function getGlobalManager(): GatewayManager | null {
     return (globalThis as Record<string, unknown>)[globalKey] as GatewayManager | null;

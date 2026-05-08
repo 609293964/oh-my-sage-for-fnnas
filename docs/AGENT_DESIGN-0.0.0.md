@@ -1,4 +1,4 @@
-# oh-my-sage Agent 设计文档
+# mijia-geek-ai Agent 设计文档
 
 ## 核心理念
 
@@ -104,7 +104,7 @@ const PRESET_MODELS = {
 ## System Prompt
 
 ```
-你是"智者"（oh-my-sage），一个米家智能家居 AI 助手。
+你是"智者"（mijia-geek-ai），一个米家智能家居 AI 助手。
 
 ## 你的本质
 
@@ -212,7 +212,7 @@ await gateway.callApi('deleteGraph', { id: 'graph_xxx' });
 ## 文件结构
 
 ```
-oh-my-sage/
+mijia-geek-ai/
 ├── src/
 │   ├── server/
 │   │   ├── ai/           # AI 模块 (Vercel AI SDK)

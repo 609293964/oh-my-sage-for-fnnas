@@ -1,8 +1,8 @@
 'use client';
 
 import React, {useState, useRef, useEffect, useCallback} from 'react';
-import {Input, Button, Space, Typography, Spin, message, Tag, Collapse} from 'antd';
-import {SendOutlined, LoadingOutlined, ToolOutlined, RobotOutlined, QuestionCircleOutlined, StopOutlined, RollbackOutlined, ThunderboltOutlined} from '@ant-design/icons';
+import {Input, Button, Space, Typography, Spin, message, Tag, Collapse, Tooltip} from 'antd';
+import {SendOutlined, LoadingOutlined, ToolOutlined, RobotOutlined, QuestionCircleOutlined, StopOutlined, RollbackOutlined, ThunderboltOutlined, CopyOutlined, CheckOutlined} from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -47,9 +47,11 @@ interface ChatProps {
     initialMessages?: SessionMessage[];
     onSessionCreated?: (sessionId: string, messages: SessionMessage[]) => void;
     onResetSession?: (sessionId: string, seq: number) => Promise<void>;
+    onGraphChanged?: () => void;
 }
 
 let messageIdCounter = 0;
+const graphMutationTools = new Set(['create_graph', 'update_graph', 'delete_graph', 'toggle_graph']);
 
 function generateMessageId(): string {
     return `msg_${Date.now()}_${++messageIdCounter}`;
@@ -61,6 +63,7 @@ export default function Chat({
                                  initialMessages,
                                  onSessionCreated,
                                  onResetSession,
+                                 onGraphChanged,
                              }: ChatProps = {}) {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState('');
@@ -71,9 +74,11 @@ export default function Chat({
     const [streamThinking, setStreamThinking] = useState('');
     const [streamToolCalls, setStreamToolCalls] = useState<Array<{ tool: string; args?: any; result?: any; success: boolean }>>([]);
     const [streamFinalContent, setStreamFinalContent] = useState('');
+    const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
 
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const abortControllerRef = useRef<AbortController | null>(null);
+    const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const passcode = propPasscode || '';
     const prevSessionIdRef = useRef<string | undefined>(sessionId);
     const initializedRef = useRef(false);
@@ -132,6 +137,60 @@ export default function Chat({
         }
     }, [messages, streamThinking, streamToolCalls, streamFinalContent, waitingInput]);
 
+    useEffect(() => {
+        return () => {
+            if (copyTimerRef.current) {
+                clearTimeout(copyTimerRef.current);
+            }
+        };
+    }, []);
+
+    const copyToClipboard = useCallback(async (content: string, messageId: string) => {
+        const text = content.trim();
+        if (!text) return;
+
+        try {
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(text);
+            } else {
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                textarea.setAttribute('readonly', 'true');
+                textarea.style.position = 'fixed';
+                textarea.style.left = '-9999px';
+                textarea.style.top = '0';
+                document.body.appendChild(textarea);
+                let copied = false;
+                try {
+                    textarea.select();
+                    copied = document.execCommand('copy');
+                } finally {
+                    document.body.removeChild(textarea);
+                }
+                if (!copied) throw new Error('复制命令失败');
+            }
+
+            setCopiedMessageId(messageId);
+            if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+            copyTimerRef.current = setTimeout(() => setCopiedMessageId(null), 1400);
+        } catch (error) {
+            message.error('复制失败，请手动选中文本复制');
+        }
+    }, []);
+
+    const renderCopyButton = (content: string, messageId: string) => (
+        <Tooltip title={copiedMessageId === messageId ? '已复制' : '复制'}>
+            <Button
+                type="text"
+                size="small"
+                aria-label="复制消息"
+                className="chat-copy-button"
+                icon={copiedMessageId === messageId ? <CheckOutlined/> : <CopyOutlined/>}
+                onClick={() => copyToClipboard(content, messageId)}
+            />
+        </Tooltip>
+    );
+
     const sendMessage = useCallback(async (messageText: string) => {
         if (!messageText.trim() || isLoading) return;
 
@@ -148,6 +207,7 @@ export default function Chat({
         let currentThinking = '';
         const currentToolCalls: Array<{ tool: string; args?: any; result?: any; success: boolean }> = [];
         let finalContent = '';
+        let graphChanged = false;
         setStreamThinking('');
         setStreamToolCalls([]);
         setStreamFinalContent('');
@@ -201,6 +261,12 @@ export default function Chat({
                                 if (lastIndex >= 0) {
                                     currentToolCalls[lastIndex].success = output.result?.success !== false;
                                     currentToolCalls[lastIndex].result = output.result;
+                                    if (
+                                        graphMutationTools.has(currentToolCalls[lastIndex].tool) &&
+                                        output.result?.success !== false
+                                    ) {
+                                        graphChanged = true;
+                                    }
                                     setStreamToolCalls([...currentToolCalls]);
                                 }
                                 break;
@@ -258,6 +324,9 @@ export default function Chat({
             setStreamThinking('');
             setStreamToolCalls([]);
             setStreamFinalContent('');
+            if (graphChanged) {
+                onGraphChanged?.();
+            }
 
         } catch (error: any) {
             if (error.name === 'AbortError') return;
@@ -268,7 +337,7 @@ export default function Chat({
             abortControllerRef.current = null;
             setIsLoading(false);
         }
-    }, [isLoading, passcode, currentSessionId, onSessionCreated]);
+    }, [isLoading, passcode, currentSessionId, onSessionCreated, onGraphChanged]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -323,14 +392,11 @@ export default function Chat({
         return (
             <div key={msg.id} className="msg-enter" style={{marginBottom: 20, display: 'flex', gap: 10, alignItems: 'flex-start'}}>
                 {/* 头像 */}
-                <div style={{
-                    width: 32, height: 32, borderRadius: 'var(--radius-md)',
-                    background: 'var(--gradient-primary)', flexShrink: 0,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    boxShadow: 'var(--shadow-glow)',
+                <div className="chat-avatar" style={{
+                    width: 32, height: 32, borderRadius: 'var(--radius-full)',
                     marginTop: 2,
                 }}>
-                    <ThunderboltOutlined style={{color: '#fff', fontSize: 14}}/>
+                    <ThunderboltOutlined style={{color: 'inherit', fontSize: 14}}/>
                 </div>
 
                 <div style={{flex: 1, maxWidth: '82%'}}>
@@ -356,7 +422,7 @@ export default function Chat({
                                                 <div style={{
                                                     padding: 10, borderRadius: 'var(--radius-sm)',
                                                     background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.15)',
-                                                    whiteSpace: 'pre-wrap', color: '#fbbf24', lineHeight: 1.6,
+                                                    whiteSpace: 'pre-wrap', color: 'var(--warning-text)', lineHeight: 1.6,
                                                 }}>
                                                     {msg.process!.thinking}
                                                 </div>
@@ -365,10 +431,10 @@ export default function Chat({
                                         {toolCalls.map((tc, i) => (
                                             <div key={`${msg.id}-tool-${i}`} style={{
                                                 marginBottom: 6, padding: 10, borderRadius: 'var(--radius-sm)',
-                                                background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.1)',
+                                                background: 'var(--accent-soft)', border: '1px solid var(--accent-border)',
                                             }}>
                                                 <Space style={{marginBottom: 4}}>
-                                                    <ToolOutlined style={{color: '#818cf8'}}/>
+                                                    <ToolOutlined style={{color: 'var(--accent)'}}/>
                                                     <Text strong style={{fontSize: 12, color: 'var(--text-bright)'}}>{tc.tool}</Text>
                                                     <Tag color={tc.success ? 'success' : 'error'} style={{fontSize: 10}}>
                                                         {tc.success ? '✓' : '✗'}
@@ -395,14 +461,14 @@ export default function Chat({
                     )}
 
                     {msg.content && (
-                        <div style={{
+                        <div className="chat-bubble chat-bubble-assistant chat-selectable" style={{
                             padding: '14px 18px',
-                            background: 'var(--bg-surface)',
-                            border: '1px solid var(--border-subtle)',
-                            borderRadius: '4px var(--radius-lg) var(--radius-lg) var(--radius-lg)',
+                            borderRadius: '6px var(--radius-lg) var(--radius-lg) var(--radius-lg)',
                             animation: 'fadeInUp 0.3s var(--ease-out)',
+                            position: 'relative',
                         }}>
                             <div className="markdown-content">{renderMarkdown(msg.content)}</div>
+                            {renderCopyButton(msg.content, msg.id)}
                         </div>
                     )}
                 </div>
@@ -418,17 +484,14 @@ export default function Chat({
         if (!hasContent) {
             return (
                 <div className="msg-enter" style={{marginBottom: 20, display: 'flex', gap: 10, alignItems: 'flex-start'}}>
-                    <div style={{
-                        width: 32, height: 32, borderRadius: 'var(--radius-md)',
-                        background: 'var(--gradient-primary)', flexShrink: 0,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    <div className="chat-avatar" style={{
+                        width: 32, height: 32, borderRadius: 'var(--radius-full)',
                     }}>
-                        <ThunderboltOutlined style={{color: '#fff', fontSize: 14}}/>
+                        <ThunderboltOutlined style={{color: 'inherit', fontSize: 14}}/>
                     </div>
-                    <div style={{
-                        padding: '14px 18px', background: 'var(--bg-surface)',
-                        border: '1px solid var(--border-subtle)',
-                        borderRadius: '4px var(--radius-lg) var(--radius-lg) var(--radius-lg)',
+                    <div className="chat-bubble chat-bubble-assistant" style={{
+                        padding: '14px 18px',
+                        borderRadius: '6px var(--radius-lg) var(--radius-lg) var(--radius-lg)',
                     }}>
                         <div className="typing-indicator">
                             <span/><span/><span/>
@@ -440,13 +503,10 @@ export default function Chat({
 
         return (
             <div className="msg-enter" style={{marginBottom: 20, display: 'flex', gap: 10, alignItems: 'flex-start'}}>
-                <div style={{
-                    width: 32, height: 32, borderRadius: 'var(--radius-md)',
-                    background: 'var(--gradient-primary)', flexShrink: 0,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    animation: 'pulseGlow 2s infinite',
+                <div className="chat-avatar chat-avatar-active" style={{
+                    width: 32, height: 32, borderRadius: 'var(--radius-full)',
                 }}>
-                    <ThunderboltOutlined style={{color: '#fff', fontSize: 14}}/>
+                    <ThunderboltOutlined style={{color: 'inherit', fontSize: 14}}/>
                 </div>
 
                 <div style={{flex: 1, maxWidth: '82%'}}>
@@ -459,7 +519,7 @@ export default function Chat({
                                 key: '1',
                                 label: (
                                     <div style={{display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6}}>
-                                        <Spin indicator={<LoadingOutlined style={{fontSize: 12, color: '#818cf8'}} spin/>}/>
+                                        <Spin indicator={<LoadingOutlined style={{fontSize: 12, color: 'var(--accent)'}} spin/>}/>
                                         <span style={{fontSize: 12, color: 'var(--text-muted)'}}>执行中</span>
                                         {toolCalls.map((tc, i) => (
                                             <Tag key={i} color={tc.success ? 'success' : 'processing'}>{tc.tool}</Tag>
@@ -474,7 +534,7 @@ export default function Chat({
                                                 <div style={{
                                                     padding: 10, borderRadius: 'var(--radius-sm)',
                                                     background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.15)',
-                                                    whiteSpace: 'pre-wrap', color: '#fbbf24',
+                                                    whiteSpace: 'pre-wrap', color: 'var(--warning-text)',
                                                 }}>
                                                     {streamThinking}
                                                 </div>
@@ -483,10 +543,10 @@ export default function Chat({
                                         {toolCalls.map((tc, i) => (
                                             <div key={i} style={{
                                                 marginBottom: 6, padding: 10, borderRadius: 'var(--radius-sm)',
-                                                background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.1)',
+                                                background: 'var(--accent-soft)', border: '1px solid var(--accent-border)',
                                             }}>
                                                 <Space style={{marginBottom: 4}}>
-                                                    <ToolOutlined style={{color: '#818cf8'}}/>
+                                                    <ToolOutlined style={{color: 'var(--accent)'}}/>
                                                     <Text strong style={{fontSize: 12, color: 'var(--text-bright)'}}>{tc.tool}</Text>
                                                     <Tag color={tc.success ? 'success' : tc.result ? 'error' : 'processing'}>
                                                         {tc.success ? '✓' : tc.result ? '✗' : '…'}
@@ -513,12 +573,13 @@ export default function Chat({
                     )}
 
                     {streamFinalContent && (
-                        <div style={{
-                            padding: '14px 18px', background: 'var(--bg-surface)',
-                            border: '1px solid var(--border-subtle)',
-                            borderRadius: '4px var(--radius-lg) var(--radius-lg) var(--radius-lg)',
+                        <div className="chat-bubble chat-bubble-assistant chat-selectable" style={{
+                            padding: '14px 18px',
+                            borderRadius: '6px var(--radius-lg) var(--radius-lg) var(--radius-lg)',
+                            position: 'relative',
                         }}>
                             <div className="markdown-content">{renderMarkdown(streamFinalContent)}</div>
+                            {renderCopyButton(streamFinalContent, 'streaming-final')}
                         </div>
                     )}
                 </div>
@@ -535,17 +596,15 @@ export default function Chat({
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             }}>
                 <Space size={10}>
-                    <div style={{
-                        width: 28, height: 28, borderRadius: 'var(--radius-sm)',
-                        background: 'var(--gradient-primary)', display: 'flex',
-                        alignItems: 'center', justifyContent: 'center',
+                    <div className="chat-avatar" style={{
+                        width: 28, height: 28, borderRadius: 'var(--radius-full)',
                     }}>
-                        <RobotOutlined style={{fontSize: 14, color: '#fff'}}/>
+                        <RobotOutlined style={{fontSize: 14, color: 'inherit'}}/>
                     </div>
                     <Text strong style={{color: 'var(--text-bright)', fontSize: 14}}>智者</Text>
                     {isLoading && (
                         <div style={{display: 'flex', alignItems: 'center', gap: 6}}>
-                            <Spin indicator={<LoadingOutlined style={{fontSize: 13, color: '#818cf8'}} spin/>}/>
+                            <Spin indicator={<LoadingOutlined style={{fontSize: 13, color: 'var(--accent)'}} spin/>}/>
                             <Text style={{fontSize: 12, color: 'var(--text-muted)'}}>思考中...</Text>
                         </div>
                     )}
@@ -553,22 +612,20 @@ export default function Chat({
             </div>
 
             {/* 消息区 */}
-            <div ref={messagesContainerRef} style={{flex: 1, minHeight: 0, overflow: 'auto', padding: '20px 24px'}}>
+            <div ref={messagesContainerRef} className="chat-messages" style={{flex: 1, minHeight: 0, overflow: 'auto', padding: '20px 24px'}}>
                 {messages.length === 0 && !isLoading && (
                     <div style={{
                         textAlign: 'center', padding: '60px 20px',
                         animation: 'fadeIn 0.6s var(--ease-out)',
                     }}>
-                        <div style={{
+                        <div className="chat-empty-icon" style={{
                             width: 72, height: 72, margin: '0 auto 20px',
-                            borderRadius: 'var(--radius-xl)',
-                            background: 'var(--gradient-primary)',
+                            borderRadius: 'var(--radius-full)',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            boxShadow: '0 0 40px rgba(99,102,241,0.25)',
                         }}>
-                            <RobotOutlined style={{fontSize: 32, color: '#fff'}}/>
+                            <RobotOutlined style={{fontSize: 32, color: 'inherit'}}/>
                         </div>
-                        <div className="gradient-text" style={{fontSize: 22, fontWeight: 700, marginBottom: 8}}>
+                        <div style={{fontSize: 22, fontWeight: 700, marginBottom: 8, color: 'var(--text-bright)'}}>
                             你好！我是智者
                         </div>
                         <Text style={{color: 'var(--text-muted)', fontSize: 14, display: 'block', marginBottom: 28}}>
@@ -576,11 +633,9 @@ export default function Chat({
                         </Text>
                         <Space direction="vertical" size={10}>
                             <Button
+                                className="chat-suggestion-button"
                                 onClick={() => sendMessage('帮我查看设备状态')}
                                 style={{
-                                    background: 'var(--bg-surface)',
-                                    border: '1px solid var(--border-default)',
-                                    color: 'var(--text-primary)',
                                     borderRadius: 'var(--radius-full)',
                                     padding: '6px 20px',
                                     height: 'auto',
@@ -589,11 +644,9 @@ export default function Chat({
                                 查看设备状态
                             </Button>
                             <Button
+                                className="chat-suggestion-button"
                                 onClick={() => sendMessage('帮我创建自动化规则')}
                                 style={{
-                                    background: 'var(--bg-surface)',
-                                    border: '1px solid var(--border-default)',
-                                    color: 'var(--text-primary)',
                                     borderRadius: 'var(--radius-full)',
                                     padding: '6px 20px',
                                     height: 'auto',
@@ -609,14 +662,13 @@ export default function Chat({
                     msg.role === 'user' ? (
                         <div key={msg.id} className="msg-enter" style={{marginBottom: 20, display: 'flex', justifyContent: 'flex-end'}}>
                             <div style={{maxWidth: '82%'}}>
-                                <div style={{
+                                <div className="chat-bubble chat-bubble-user chat-selectable" style={{
                                     padding: '14px 18px',
-                                    borderRadius: 'var(--radius-lg) var(--radius-lg) 4px var(--radius-lg)',
-                                    background: 'var(--gradient-primary)',
-                                    color: '#fff',
-                                    boxShadow: 'var(--shadow-glow)',
+                                    borderRadius: 'var(--radius-lg) var(--radius-lg) 6px var(--radius-lg)',
+                                    position: 'relative',
                                 }}>
-                                    <div style={{whiteSpace: 'pre-wrap', lineHeight: 1.6}}>{msg.content}</div>
+                                    <div className="chat-message-content" style={{whiteSpace: 'pre-wrap', lineHeight: 1.6}}>{msg.content}</div>
+                                    {renderCopyButton(msg.content, msg.id)}
                                 </div>
                                 {currentSessionId && onResetSession && !isLoading && msg.seq !== undefined && (
                                     <div style={{textAlign: 'right', marginTop: 4}}>
@@ -643,15 +695,15 @@ export default function Chat({
                 {waitingInput && Array.isArray(waitingInput.options) && waitingInput.options.length > 0 && (
                     <div className="msg-enter" style={{
                         padding: 18,
-                        background: 'rgba(99,102,241,0.06)',
-                        border: '1px solid rgba(99,102,241,0.15)',
+                        background: 'var(--accent-soft)',
+                        border: '1px solid var(--accent-border)',
                         borderRadius: 'var(--radius-lg)',
                         marginBottom: 16,
                     }}>
                         {waitingInput.question && (
                             <div style={{marginBottom: 14}}>
                                 <Space style={{marginBottom: 8}}>
-                                    <QuestionCircleOutlined style={{color: '#818cf8'}}/>
+                                    <QuestionCircleOutlined style={{color: 'var(--accent)'}}/>
                                     <Text strong style={{fontSize: 14, color: 'var(--text-bright)'}}>需要你的选择</Text>
                                 </Space>
                                 <div className="markdown-content">{renderMarkdown(waitingInput.question)}</div>
@@ -660,6 +712,7 @@ export default function Chat({
                         <div style={{display: 'flex', flexDirection: 'column', gap: 8}}>
                             {waitingInput.options.map((opt, i) => (
                                 <Button
+                                    className="chat-suggestion-button"
                                     key={`option-${i}`}
                                     onClick={() => {
                                         setWaitingInput(null);
@@ -667,9 +720,6 @@ export default function Chat({
                                     }}
                                     style={{
                                         textAlign: 'left', height: 'auto', whiteSpace: 'normal', padding: '10px 14px',
-                                        background: 'var(--bg-surface)',
-                                        border: '1px solid var(--border-default)',
-                                        color: 'var(--text-primary)',
                                         borderRadius: 'var(--radius-md)',
                                     }}
                                 >
@@ -685,13 +735,14 @@ export default function Chat({
             </div>
 
             {/* 输入区 */}
-            <div style={{
+            <div className="chat-input-bar" style={{
                 padding: '14px 20px',
                 borderTop: '1px solid var(--border-subtle)',
             }}>
                 <form onSubmit={handleSubmit}>
                     <Space.Compact style={{width: '100%'}}>
                         <TextArea
+                            className="chat-input"
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
                             onKeyDown={handleKeyDown}
@@ -700,40 +751,36 @@ export default function Chat({
                             disabled={isLoading && !waitingInput}
                             style={{
                                 borderRadius: 'var(--radius-lg) 0 0 var(--radius-lg)',
-                                background: 'var(--bg-surface)',
-                                borderColor: 'var(--border-default)',
                                 color: 'var(--text-primary)',
                                 resize: 'none',
                             }}
                         />
                         {isLoading ? (
                             <Button
+                                className="chat-stop-button"
                                 danger
                                 icon={<StopOutlined/>}
                                 onClick={handleStop}
                                 style={{
                                     borderRadius: '0 var(--radius-lg) var(--radius-lg) 0',
                                     height: 40,
-                                    background: 'rgba(239,68,68,0.1)',
-                                    borderColor: 'rgba(239,68,68,0.3)',
-                                    color: '#ef4444',
                                 }}
                             >
                                 停止
                             </Button>
                         ) : (
                             <Button
+                                className="chat-send-button"
                                 type="primary"
                                 icon={<SendOutlined/>}
                                 htmlType="submit"
                                 disabled={!input.trim()}
+                                aria-label="发送消息"
                                 style={{
                                     borderRadius: '0 var(--radius-lg) var(--radius-lg) 0',
                                     height: 40,
                                 }}
-                            >
-                                发送
-                            </Button>
+                            />
                         )}
                     </Space.Compact>
                 </form>

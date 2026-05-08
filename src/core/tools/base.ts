@@ -15,6 +15,16 @@ export function validateGraph(graph: Graph): ValidationError[] {
     const errors: ValidationError[] = [];
     const nodeMap = new Map<string, GraphNode>();
 
+    if (!Array.isArray(graph.nodes)) {
+        errors.push({ nodeId: graph.id || '(graph)', type: 'invalid_nodes', level: 'error', message: 'nodes 必须是数组' });
+        return errors;
+    }
+
+    if (graph.nodes.length === 0) {
+        errors.push({ nodeId: graph.id || '(graph)', type: 'empty_nodes', level: 'error', message: '规则至少需要一个节点' });
+        return errors;
+    }
+
     for (const node of graph.nodes) {
         if (nodeMap.has(node.id)) {
             errors.push({ nodeId: node.id, type: 'duplicate_id', level: 'error', message: `节点 ID "${node.id}" 重复` });

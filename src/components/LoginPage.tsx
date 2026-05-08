@@ -1,9 +1,13 @@
 'use client';
 
-import React, {useState, useCallback, useRef} from 'react';
-import {Input, Button, message, Typography} from 'antd';
-import {LockOutlined, ThunderboltFilled} from '@ant-design/icons';
-import PasscodeCapturePanel from '@/components/PasscodeCapturePanel';
+import React, {useState, useCallback, useEffect, useRef} from 'react';
+import {Input, Button, message, Modal, Space, Tooltip, Typography} from 'antd';
+import {LockOutlined, ReloadOutlined, SettingOutlined, ThunderboltFilled} from '@ant-design/icons';
+import PasscodeCapturePanel, {
+    PasscodeCapturePanelHandle,
+    PasscodeCapturePanelState,
+} from '@/components/PasscodeCapturePanel';
+import ThemeToggle from '@/components/ThemeToggle';
 
 const {Text} = Typography;
 
@@ -14,7 +18,19 @@ interface LoginPageProps {
 export default function LoginPage({onLoginSuccess}: LoginPageProps) {
     const [passcode, setPasscode] = useState('');
     const [loading, setLoading] = useState(false);
+    const [mounted, setMounted] = useState(false);
+    const [settingsOpen, setSettingsOpen] = useState(false);
+    const [passcodePanelState, setPasscodePanelState] = useState<PasscodeCapturePanelState>({
+        canRefresh: false,
+        fetching: false,
+        hydrated: false,
+    });
     const isLoggingRef = useRef(false);
+    const passcodePanelRef = useRef<PasscodeCapturePanelHandle>(null);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     const doLogin = useCallback(async (code: string) => {
         if (code.length !== 6 || isLoggingRef.current) return;
@@ -43,43 +59,72 @@ export default function LoginPage({onLoginSuccess}: LoginPageProps) {
     }, [onLoginSuccess]);
 
     const handlePasscodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const value = e.target.value.replace(/\D/g, '');
+        const value = e.target.value.replace(/\D/g, '').slice(0, 6);
         setPasscode(value);
         if (value.length === 6) {
             setTimeout(() => doLogin(value), 0);
         }
     };
 
-    const handleInsertPasscode = useCallback((code: string) => {
+    const handlePasscodeFetched = useCallback((code: string) => {
         const value = code.replace(/\D/g, '').slice(0, 6);
         setPasscode(value);
-        message.success('验证码已插入');
+    }, []);
+
+    const handlePasscodePanelStateChange = useCallback((state: PasscodeCapturePanelState) => {
+        setPasscodePanelState(state);
+    }, []);
+
+    const handleRefreshPasscode = useCallback(() => {
+        if (!passcodePanelRef.current) {
+            message.warning('验证码设置正在加载，请稍后重试');
+            return;
+        }
+        passcodePanelRef.current.refreshPasscode();
     }, []);
 
     return (
-        <div style={{
-            minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center',
-            background: 'var(--bg-deep)',
-            position: 'relative', overflow: 'auto',
-            padding: 24,
-        }}>
-            {/* 动态背景光效 */}
-            <div style={{
-                position: 'absolute', width: 600, height: 600,
-                borderRadius: '50%', filter: 'blur(120px)', opacity: 0.15,
-                background: 'var(--gradient-primary)',
-                top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-                animation: 'gradientShift 8s ease infinite',
-                backgroundSize: '200% 200%',
-            }}/>
-            <div style={{
-                position: 'absolute', width: 400, height: 400,
-                borderRadius: '50%', filter: 'blur(100px)', opacity: 0.1,
-                background: 'var(--gradient-accent)',
-                top: '30%', left: '60%',
-                animation: 'gradientShift 10s ease infinite reverse',
-                backgroundSize: '200% 200%',
-            }}/>
+        <div className="login-page">
+            <div className="login-top-actions">
+                <Tooltip title="验证码设置">
+                    <Button
+                        className="login-settings-button"
+                        shape="circle"
+                        icon={<SettingOutlined/>}
+                        onClick={() => setSettingsOpen(true)}
+                        aria-label="验证码设置"
+                    />
+                </Tooltip>
+                <ThemeToggle/>
+            </div>
+
+            {mounted && (
+                <Modal
+                    title="验证码设置"
+                    open={settingsOpen}
+                    onCancel={() => setSettingsOpen(false)}
+                    footer={null}
+                    width={560}
+                    centered
+                    forceRender
+                >
+                    <PasscodeCapturePanel
+                        ref={passcodePanelRef}
+                        disabled={loading}
+                        onPasscodeFetched={handlePasscodeFetched}
+                        onStateChange={handlePasscodePanelStateChange}
+                    />
+                </Modal>
+            )}
+
+            {/* 亮色主题主视觉 */}
+            <div className="login-main-visual" aria-hidden="true">
+                <div className="login-visual-slab">
+                    <span/>
+                    <span/>
+                    <span/>
+                </div>
+            </div>
 
             {/* 登录卡片 */}
             <div
@@ -105,33 +150,44 @@ export default function LoginPage({onLoginSuccess}: LoginPageProps) {
                 </div>
 
                 <h1 className="gradient-text" style={{
-                    fontSize: 26, fontWeight: 800, margin: '0 0 6px',
-                    letterSpacing: -0.5,
+                    fontSize: 25, fontWeight: 800, margin: '0 0 28px',
+                    letterSpacing: 0,
                 }}>
-                    Oh My Sage
-                </h1>
-                <Text style={{color: 'var(--text-muted)', fontSize: 13, display: 'block', marginBottom: 32}}>
                     米家自动化极客版 AI Agent
-                </Text>
+                </h1>
 
                 <div style={{marginBottom: 20}}>
-                    <Input
-                        prefix={<LockOutlined style={{color: 'var(--text-muted)'}}/>}
-                        placeholder="输入 6 位米家登录码"
-                        maxLength={6}
-                        size="large"
-                        value={passcode}
-                        onChange={handlePasscodeChange}
-                        disabled={loading}
-                        style={{
-                            textAlign: 'center', letterSpacing: 6, fontSize: 18, fontWeight: 600,
-                            borderRadius: 'var(--radius-md)',
-                        }}
-                    />
+                    <Space.Compact style={{width: '100%'}}>
+                        <Input
+                            prefix={<LockOutlined style={{color: 'var(--text-muted)'}}/>}
+                            placeholder="输入 6 位米家登录码"
+                            maxLength={6}
+                            size="large"
+                            value={passcode}
+                            onChange={handlePasscodeChange}
+                            disabled={loading}
+                            style={{
+                                textAlign: 'center',
+                                letterSpacing: 6,
+                                fontSize: 18,
+                                fontWeight: 600,
+                            }}
+                        />
+                        <Tooltip title={passcodePanelState.canRefresh ? '重新获取验证码' : '先在右上角设置验证码请求'}>
+                            <Button
+                                size="large"
+                                icon={<ReloadOutlined/>}
+                                loading={passcodePanelState.fetching}
+                                disabled={loading || !passcodePanelState.canRefresh}
+                                onClick={handleRefreshPasscode}
+                                aria-label="重新获取验证码"
+                                style={{width: 48}}
+                            />
+                        </Tooltip>
+                    </Space.Compact>
                     <Text style={{color: 'var(--text-muted)', fontSize: 11, marginTop: 8, display: 'block'}}>
-                        输入 6 位后自动连接
+                        输入 6 位后自动连接，刷新会自动填入验证码
                     </Text>
-                    <PasscodeCapturePanel disabled={loading} onInsert={handleInsertPasscode}/>
                 </div>
 
                 <Button

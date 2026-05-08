@@ -8,7 +8,7 @@ if "${SCRIPT_DIR}/main" status >/dev/null 2>&1; then
     was_running=1
 fi
 
-write_oh_my_sage_env
+write_mijia_geek_ai_env
 
 if [ "${was_running}" -eq 1 ]; then
     "${SCRIPT_DIR}/main" stop

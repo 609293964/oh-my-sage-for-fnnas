@@ -40,14 +40,18 @@ next-env.d.ts
 
 # fnOS packaging output
 *.fpk
-fnnas.oh-my-sage/app/server/
-fnnas.oh-my-sage/*.fpk
+fnpack.exe
+fnnas.mijia-geek-ai/app/server/
+fnnas.mijia-geek-ai/*.fpk
 
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
+
+# Local agent instructions
+AGENTS.md
 
 # OS
 Thumbs.db

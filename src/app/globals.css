@@ -1,6 +1,7 @@
-/* Oh My Sage - 暗色科技风主题 */
+/* Mijia Geek AI - 主题变量 */
 
-:root {
+:root,
+:root[data-theme="dark"] {
     /* 核心色 */
     --bg-deep: #0a0a14;
     --bg-base: #0f0f1e;
@@ -8,23 +9,36 @@
     --bg-surface-hover: rgba(255, 255, 255, 0.07);
     --bg-glass: rgba(15, 15, 30, 0.85);
     --bg-glass-light: rgba(255, 255, 255, 0.06);
+    --bg-elevated: rgba(0, 0, 0, 0.2);
+    --bg-code: rgba(99, 102, 241, 0.12);
+    --bg-pre: rgba(0, 0, 0, 0.4);
 
     /* 渐变 */
     --gradient-primary: linear-gradient(135deg, #6366f1, #8b5cf6);
     --gradient-accent: linear-gradient(135deg, #06b6d4, #3b82f6);
     --gradient-warm: linear-gradient(135deg, #f59e0b, #ef4444);
     --gradient-glow: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #06b6d4 100%);
+    --login-bg: linear-gradient(180deg, #0a0a14 0%, #101022 52%, #090912 100%);
+    --login-ambient: linear-gradient(115deg, rgba(99, 102, 241, 0.24), transparent 38%),
+    linear-gradient(245deg, rgba(6, 182, 212, 0.14), transparent 34%);
+    --login-visual-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.025));
+    --login-visual-line: rgba(255, 255, 255, 0.18);
 
     /* 文本 */
     --text-primary: #e2e8f0;
     --text-secondary: #94a3b8;
     --text-muted: #64748b;
     --text-bright: #f8fafc;
+    --text-on-primary: #ffffff;
+    --code-text: #a5b4fc;
+    --pre-code-text: #c4b5fd;
+    --warning-text: #fbbf24;
 
     /* 边框 */
     --border-subtle: rgba(255, 255, 255, 0.06);
     --border-default: rgba(255, 255, 255, 0.1);
     --border-active: rgba(99, 102, 241, 0.5);
+    --accent-border: rgba(99, 102, 241, 0.18);
 
     /* 阴影 */
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
@@ -32,6 +46,42 @@
     --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
     --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.15);
     --shadow-glow-accent: 0 0 20px rgba(6, 182, 212, 0.15);
+    --login-visual-shadow: 0 40px 140px rgba(0, 0, 0, 0.38);
+
+    /* 语义色 */
+    --accent: #818cf8;
+    --accent-strong: #6366f1;
+    --accent-hover: #a5b4fc;
+    --accent-soft: rgba(99, 102, 241, 0.1);
+    --success: #10b981;
+    --danger: #ef4444;
+    --danger-soft: rgba(239, 68, 68, 0.1);
+    --danger-border: rgba(239, 68, 68, 0.42);
+    --selection-bg: rgba(99, 102, 241, 0.3);
+    --selection-text: #ffffff;
+    --scrollbar-thumb: rgba(255, 255, 255, 0.1);
+    --scrollbar-thumb-hover: rgba(255, 255, 255, 0.18);
+    --popover-bg: rgba(20, 20, 40, 0.95);
+    --message-bg: rgba(20, 20, 40, 0.95);
+
+    /* 聊天界面 */
+    --chat-accent: #0a84ff;
+    --chat-accent-hover: #2f9bff;
+    --chat-accent-soft: rgba(10, 132, 255, 0.14);
+    --chat-avatar-bg: rgba(255, 255, 255, 0.08);
+    --chat-avatar-border: rgba(255, 255, 255, 0.12);
+    --chat-avatar-icon: #70b7ff;
+    --chat-assistant-bubble: rgba(255, 255, 255, 0.075);
+    --chat-assistant-border: rgba(255, 255, 255, 0.08);
+    --chat-user-bubble: #0a84ff;
+    --chat-user-text: #ffffff;
+    --chat-input-bg: rgba(255, 255, 255, 0.07);
+    --chat-input-border: rgba(255, 255, 255, 0.1);
+    --chat-input-focus: rgba(10, 132, 255, 0.38);
+    --chat-send-bg: #0a84ff;
+    --chat-send-bg-hover: #2f9bff;
+    --chat-send-text: #ffffff;
+    --chat-subtle-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
 
     /* 圆角 */
     --radius-sm: 6px;
@@ -43,6 +93,89 @@
     /* 动画 */
     --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
     --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+:root[data-theme="light"] {
+    /* 核心色 */
+    --bg-deep: #f5f5f7;
+    --bg-base: rgba(255, 255, 255, 0.78);
+    --bg-surface: rgba(0, 0, 0, 0.035);
+    --bg-surface-hover: rgba(0, 0, 0, 0.06);
+    --bg-glass: rgba(255, 255, 255, 0.78);
+    --bg-glass-light: rgba(255, 255, 255, 0.64);
+    --bg-elevated: rgba(255, 255, 255, 0.64);
+    --bg-code: rgba(0, 113, 227, 0.09);
+    --bg-pre: rgba(255, 255, 255, 0.9);
+
+    /* 渐变 */
+    --gradient-primary: linear-gradient(135deg, #0071e3, #5e5ce6);
+    --gradient-accent: linear-gradient(135deg, #32d2ff, #0a84ff);
+    --gradient-warm: linear-gradient(135deg, #ff9f0a, #ff3b30);
+    --gradient-glow: linear-gradient(135deg, #1d1d1f 0%, #0071e3 46%, #5e5ce6 100%);
+    --login-bg: linear-gradient(180deg, #ffffff 0%, #f5f5f7 56%, #e9edf3 100%);
+    --login-ambient: linear-gradient(120deg, rgba(0, 113, 227, 0.09), transparent 40%),
+    linear-gradient(240deg, rgba(52, 199, 89, 0.08), transparent 34%);
+    --login-visual-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(238, 242, 247, 0.62));
+    --login-visual-line: rgba(0, 0, 0, 0.08);
+
+    /* 文本 */
+    --text-primary: #1d1d1f;
+    --text-secondary: #515154;
+    --text-muted: #86868b;
+    --text-bright: #000000;
+    --text-on-primary: #ffffff;
+    --code-text: #0057b8;
+    --pre-code-text: #1d1d1f;
+    --warning-text: #b45309;
+
+    /* 边框 */
+    --border-subtle: rgba(0, 0, 0, 0.07);
+    --border-default: rgba(0, 0, 0, 0.1);
+    --border-active: rgba(0, 113, 227, 0.42);
+    --accent-border: rgba(0, 113, 227, 0.18);
+
+    /* 阴影 */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+    --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.08);
+    --shadow-lg: 0 24px 70px rgba(0, 0, 0, 0.12);
+    --shadow-glow: 0 12px 28px rgba(0, 113, 227, 0.12);
+    --shadow-glow-accent: 0 12px 28px rgba(50, 210, 255, 0.14);
+    --login-visual-shadow: 0 42px 120px rgba(24, 43, 77, 0.16);
+
+    /* 语义色 */
+    --accent: #0071e3;
+    --accent-strong: #0057b8;
+    --accent-hover: #0a84ff;
+    --accent-soft: rgba(0, 113, 227, 0.08);
+    --success: #34c759;
+    --danger: #ff3b30;
+    --danger-soft: rgba(255, 59, 48, 0.1);
+    --danger-border: rgba(255, 59, 48, 0.42);
+    --selection-bg: rgba(0, 113, 227, 0.16);
+    --selection-text: #000000;
+    --scrollbar-thumb: rgba(0, 0, 0, 0.16);
+    --scrollbar-thumb-hover: rgba(0, 0, 0, 0.26);
+    --popover-bg: rgba(255, 255, 255, 0.98);
+    --message-bg: rgba(255, 255, 255, 0.98);
+
+    /* 聊天界面 */
+    --chat-accent: #007aff;
+    --chat-accent-hover: #0066d6;
+    --chat-accent-soft: rgba(0, 122, 255, 0.1);
+    --chat-avatar-bg: #f2f2f7;
+    --chat-avatar-border: rgba(0, 0, 0, 0.06);
+    --chat-avatar-icon: #007aff;
+    --chat-assistant-bubble: #f2f2f7;
+    --chat-assistant-border: rgba(0, 0, 0, 0.05);
+    --chat-user-bubble: #007aff;
+    --chat-user-text: #ffffff;
+    --chat-input-bg: #ffffff;
+    --chat-input-border: rgba(0, 0, 0, 0.1);
+    --chat-input-focus: rgba(0, 122, 255, 0.34);
+    --chat-send-bg: #007aff;
+    --chat-send-bg-hover: #0066d6;
+    --chat-send-text: #ffffff;
+    --chat-subtle-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
 }
 
 *,
@@ -72,13 +205,13 @@ body {
 }
 
 a {
-    color: #818cf8;
+    color: var(--accent);
     text-decoration: none;
     transition: color 0.2s var(--ease-out);
 }
 
 a:hover {
-    color: #a5b4fc;
+    color: var(--accent-hover);
 }
 
 /* ───── 滚动条 ───── */
@@ -92,18 +225,165 @@ a:hover {
 }
 
 ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--scrollbar-thumb);
     border-radius: var(--radius-full);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.18);
+    background: var(--scrollbar-thumb-hover);
 }
 
 /* ───── 选择文本 ───── */
 ::selection {
-    background: rgba(99, 102, 241, 0.3);
-    color: #fff;
+    background: var(--selection-bg);
+    color: var(--selection-text);
+}
+
+/* ───── 聊天文本选择/复制 ───── */
+.chat-selectable,
+.chat-selectable * {
+    -webkit-user-select: text !important;
+    user-select: text !important;
+    -webkit-touch-callout: default;
+}
+
+.chat-bubble {
+    position: relative;
+    padding-right: 48px !important;
+}
+
+.chat-bubble-assistant {
+    background: var(--chat-assistant-bubble) !important;
+    border: 1px solid var(--chat-assistant-border) !important;
+    box-shadow: none !important;
+}
+
+.chat-bubble-user {
+    background: var(--chat-user-bubble) !important;
+    color: var(--chat-user-text) !important;
+    box-shadow: var(--chat-subtle-shadow) !important;
+}
+
+.chat-avatar {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--chat-avatar-bg);
+    border: 1px solid var(--chat-avatar-border);
+    color: var(--chat-avatar-icon);
+    box-shadow: none;
+}
+
+.chat-avatar-active {
+    background: var(--chat-accent-soft);
+    border-color: var(--chat-input-focus);
+    color: var(--chat-accent);
+    animation: pulseGlow 2s infinite;
+}
+
+.chat-empty-icon {
+    background: var(--chat-avatar-bg);
+    border: 1px solid var(--chat-avatar-border);
+    color: var(--chat-avatar-icon);
+    box-shadow: none;
+}
+
+.chat-suggestion-button.ant-btn {
+    background: var(--chat-assistant-bubble) !important;
+    border: 1px solid var(--chat-assistant-border) !important;
+    color: var(--text-primary) !important;
+}
+
+.chat-suggestion-button.ant-btn:hover {
+    border-color: var(--chat-input-focus) !important;
+    color: var(--chat-accent) !important;
+    background: var(--chat-accent-soft) !important;
+}
+
+.chat-input-bar {
+    background: var(--bg-glass-light);
+}
+
+.chat-input.ant-input {
+    background: var(--chat-input-bg) !important;
+    border-color: var(--chat-input-border) !important;
+}
+
+.chat-input.ant-input:hover,
+.chat-input.ant-input:focus {
+    border-color: var(--chat-input-focus) !important;
+}
+
+.chat-send-button.ant-btn-primary {
+    width: 44px;
+    height: 40px;
+    min-width: 44px;
+    padding: 0 !important;
+    background: var(--chat-send-bg) !important;
+    color: var(--chat-send-text) !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.chat-send-button.ant-btn-primary:hover {
+    background: var(--chat-send-bg-hover) !important;
+    filter: none;
+    transform: none;
+    box-shadow: none !important;
+}
+
+.chat-send-button.ant-btn-primary:disabled {
+    background: var(--bg-surface-hover) !important;
+    color: var(--text-muted) !important;
+}
+
+.chat-stop-button.ant-btn {
+    background: var(--danger-soft) !important;
+    border-color: var(--danger-border) !important;
+    color: var(--danger) !important;
+}
+
+.chat-copy-button,
+.chat-copy-button * {
+    -webkit-user-select: none !important;
+    user-select: none !important;
+}
+
+.chat-copy-button.ant-btn {
+    position: absolute !important;
+    top: 8px;
+    right: 8px;
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    padding: 0 !important;
+    border-radius: var(--radius-sm);
+    opacity: 0.58;
+    transition: opacity 0.18s var(--ease-out), background 0.18s var(--ease-out), color 0.18s var(--ease-out);
+}
+
+.chat-bubble:hover .chat-copy-button,
+.chat-copy-button:focus-visible {
+    opacity: 1;
+}
+
+.chat-bubble:not(.chat-bubble-user) .chat-copy-button {
+    color: var(--text-muted) !important;
+}
+
+.chat-bubble:not(.chat-bubble-user) .chat-copy-button:hover {
+    background: var(--bg-surface-hover) !important;
+    color: var(--text-bright) !important;
+}
+
+.chat-bubble-user .chat-copy-button {
+    color: rgba(255, 255, 255, 0.78) !important;
+}
+
+.chat-bubble-user .chat-copy-button:hover {
+    background: rgba(255, 255, 255, 0.16) !important;
+    color: #fff !important;
 }
 
 /* ───── 通用动画 ───── */
@@ -129,10 +409,10 @@ a:hover {
 
 @keyframes pulseGlow {
     0%, 100% {
-        box-shadow: 0 0 8px rgba(99, 102, 241, 0.2);
+        box-shadow: 0 0 0 0 var(--chat-accent-soft);
     }
     50% {
-        box-shadow: 0 0 20px rgba(99, 102, 241, 0.4);
+        box-shadow: 0 0 0 6px var(--chat-accent-soft);
     }
 }
 
@@ -181,6 +461,149 @@ a:hover {
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     border: 1px solid var(--border-subtle);
+}
+
+/* ───── 登录主视觉 ───── */
+.login-page {
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: var(--login-bg);
+    position: relative;
+    overflow: auto;
+    padding: 24px;
+}
+
+.login-page::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--login-ambient);
+    pointer-events: none;
+}
+
+.login-top-actions {
+    position: absolute;
+    top: 20px;
+    right: 24px;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.login-settings-button.ant-btn {
+    width: 34px;
+    height: 34px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+    box-shadow: none;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+}
+
+.login-settings-button.ant-btn:hover,
+.login-settings-button.ant-btn:focus-visible {
+    background: var(--bg-surface-hover);
+    border-color: var(--border-active);
+    color: var(--text-bright);
+}
+
+.login-main-visual {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.login-visual-slab {
+    position: absolute;
+    right: max(-110px, calc(50% - 760px));
+    bottom: 6vh;
+    width: min(56vw, 680px);
+    aspect-ratio: 1.38;
+    border: 1px solid var(--border-subtle);
+    border-radius: 34px;
+    background: var(--login-visual-bg);
+    box-shadow: var(--login-visual-shadow);
+    transform: rotate(-8deg);
+    opacity: 0.88;
+}
+
+.login-visual-slab::before,
+.login-visual-slab::after {
+    content: '';
+    position: absolute;
+    inset: 16%;
+    border: 1px solid var(--login-visual-line);
+    border-radius: 28px;
+}
+
+.login-visual-slab::after {
+    inset: 30%;
+    border-radius: 22px;
+}
+
+.login-visual-slab span {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: 0.5;
+}
+
+.login-visual-slab span:nth-child(1) {
+    left: 18%;
+    top: 22%;
+}
+
+.login-visual-slab span:nth-child(2) {
+    right: 24%;
+    top: 32%;
+}
+
+.login-visual-slab span:nth-child(3) {
+    left: 42%;
+    bottom: 24%;
+}
+
+/* ───── 主题切换 ───── */
+.theme-toggle.ant-segmented {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    padding: 3px;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+}
+
+.theme-toggle .ant-segmented-item {
+    color: var(--text-muted);
+    border-radius: var(--radius-sm);
+}
+
+.theme-toggle .ant-segmented-item-input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.theme-toggle .ant-segmented-item-selected {
+    background: var(--bg-base);
+    color: var(--text-bright);
+    box-shadow: var(--shadow-sm);
+}
+
+.theme-toggle-icon {
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    line-height: 1;
 }
 
 /* ───── 渐变文字 ───── */
@@ -239,8 +662,8 @@ a:hover {
 }
 
 .markdown-content code {
-    background: rgba(99, 102, 241, 0.12);
-    color: #a5b4fc;
+    background: var(--bg-code);
+    color: var(--code-text);
     padding: 2px 7px;
     border-radius: 5px;
     font-size: 13px;
@@ -248,7 +671,7 @@ a:hover {
 }
 
 .markdown-content pre {
-    background: rgba(0, 0, 0, 0.4);
+    background: var(--bg-pre);
     border: 1px solid var(--border-subtle);
     padding: 14px;
     border-radius: var(--radius-md);
@@ -259,7 +682,7 @@ a:hover {
 .markdown-content pre code {
     background: none;
     padding: 0;
-    color: #c4b5fd;
+    color: var(--pre-code-text);
 }
 
 .markdown-content table {
@@ -276,24 +699,24 @@ a:hover {
 }
 
 .markdown-content th {
-    background: rgba(99, 102, 241, 0.1);
+    background: var(--accent-soft);
     color: var(--text-bright);
     font-weight: 600;
 }
 
 .markdown-content blockquote {
-    border-left: 3px solid #6366f1;
+    border-left: 3px solid var(--accent-strong);
     padding-left: 14px;
     margin: 8px 0;
     color: var(--text-secondary);
 }
 
 .markdown-content a {
-    color: #818cf8;
+    color: var(--accent);
 }
 
 .markdown-content a:hover {
-    color: #a5b4fc;
+    color: var(--accent-hover);
     text-decoration: underline;
 }
 
@@ -319,7 +742,7 @@ a:hover {
     width: 7px;
     height: 7px;
     border-radius: 50%;
-    background: #6366f1;
+    background: var(--chat-accent);
     animation: typingBounce 1.4s infinite ease-in-out;
 }
 
@@ -331,7 +754,7 @@ a:hover {
     animation-delay: 0.32s;
 }
 
-/* ───── 按钮覆写 (Ant Design 暗色适配) ───── */
+/* ───── 按钮覆写 ───── */
 .ant-btn-primary {
     background: var(--gradient-primary) !important;
     border: none !important;
@@ -341,7 +764,7 @@ a:hover {
 
 .ant-btn-primary:hover {
     filter: brightness(1.15);
-    box-shadow: 0 0 28px rgba(99, 102, 241, 0.35) !important;
+    box-shadow: var(--shadow-glow) !important;
     transform: translateY(-1px);
 }
 
@@ -356,25 +779,34 @@ a:hover {
     box-shadow: 0 0 16px rgba(239, 68, 68, 0.2);
 }
 
-/* ───── Antd 组件暗色覆写 ───── */
+/* ───── Antd 组件覆写 ───── */
 .ant-input,
+.ant-input-affix-wrapper,
 .ant-input-textarea .ant-input {
     background: var(--bg-surface) !important;
     border-color: var(--border-default) !important;
     color: var(--text-primary) !important;
-    caret-color: #818cf8;
+    caret-color: var(--accent);
+}
+
+.ant-input-affix-wrapper .ant-input {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
 }
 
 .ant-input:hover,
+.ant-input-affix-wrapper:hover,
 .ant-input-textarea .ant-input:hover {
     border-color: var(--border-active) !important;
 }
 
 .ant-input:focus,
 .ant-input-textarea .ant-input:focus,
-.ant-input-focused {
-    border-color: #6366f1 !important;
-    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15) !important;
+.ant-input-focused,
+.ant-input-affix-wrapper-focused {
+    border-color: var(--accent-strong) !important;
+    box-shadow: 0 0 0 2px var(--accent-soft) !important;
 }
 
 .ant-input::placeholder {
@@ -397,7 +829,7 @@ a:hover {
 }
 
 .ant-collapse .ant-collapse-content {
-    background: rgba(0, 0, 0, 0.2) !important;
+    background: var(--bg-elevated) !important;
     border-top: 1px solid var(--border-subtle) !important;
 }
 
@@ -430,7 +862,7 @@ a:hover {
 }
 
 .ant-popover-inner {
-    background: rgba(20, 20, 40, 0.95) !important;
+    background: var(--popover-bg) !important;
     backdrop-filter: blur(12px) !important;
     border: 1px solid var(--border-subtle) !important;
     border-radius: var(--radius-md) !important;
@@ -442,15 +874,46 @@ a:hover {
 
 .ant-popover-arrow::before,
 .ant-popover-arrow::after {
-    background: rgba(20, 20, 40, 0.95) !important;
+    background: var(--popover-bg) !important;
+}
+
+.ant-modal .ant-modal-content {
+    background: var(--popover-bg) !important;
+    color: var(--text-primary) !important;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+}
+
+.ant-modal .ant-modal-header {
+    background: transparent !important;
+    border-bottom: 1px solid var(--border-subtle);
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+}
+
+.ant-modal .ant-modal-title {
+    color: var(--text-bright) !important;
+    font-weight: 700;
+}
+
+.ant-modal .ant-modal-close {
+    color: var(--text-muted) !important;
+}
+
+.ant-modal .ant-modal-close:hover {
+    color: var(--text-bright) !important;
+    background: var(--bg-surface-hover) !important;
 }
 
 .ant-spin-dot-item {
-    background-color: #6366f1 !important;
+    background-color: var(--accent-strong) !important;
 }
 
 .ant-message-notice-content {
-    background: rgba(20, 20, 40, 0.95) !important;
+    background: var(--message-bg) !important;
     backdrop-filter: blur(12px) !important;
     border: 1px solid var(--border-subtle) !important;
     border-radius: var(--radius-md) !important;
@@ -558,9 +1021,9 @@ a:hover {
     min-height: 0;
 }
 
-/* Sider 折叠按钮暗色 */
+/* Sider 折叠按钮 */
 .ant-layout-sider-trigger {
-    background: rgba(255, 255, 255, 0.04) !important;
+    background: var(--bg-surface) !important;
     border-top: 1px solid var(--border-subtle) !important;
     color: var(--text-muted) !important;
 }
@@ -570,5 +1033,30 @@ a:hover {
     :root {
         --radius-lg: 12px;
         --radius-xl: 14px;
+    }
+
+    .app-brand-subtitle,
+    .app-device-status {
+        display: none !important;
+    }
+
+    .app-header-actions {
+        gap: 8px !important;
+    }
+
+    .login-page {
+        padding: 88px 18px 24px;
+    }
+
+    .login-top-actions {
+        top: 18px;
+        right: 18px;
+    }
+
+    .login-visual-slab {
+        width: min(88vw, 420px);
+        right: -160px;
+        bottom: 7vh;
+        opacity: 0.54;
     }
 }

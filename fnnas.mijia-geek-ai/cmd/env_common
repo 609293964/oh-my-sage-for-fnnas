@@ -1,7 +1,7 @@
 #!/bin/bash
 
-CONFIG_FILE="${TRIM_PKGETC}/oh-my-sage.env"
-DEFAULT_CONFIG="${TRIM_APPDEST}/config/oh-my-sage.env.example"
+CONFIG_FILE="${TRIM_PKGETC}/mijia-geek-ai.env"
+DEFAULT_CONFIG="${TRIM_APPDEST}/config/mijia-geek-ai.env.example"
 
 shell_quote() {
     local value="$1"
@@ -82,7 +82,7 @@ load_existing_config() {
     fi
 }
 
-write_oh_my_sage_env() {
+write_mijia_geek_ai_env() {
     prepare_config_dir
     load_existing_config
 
@@ -95,7 +95,7 @@ write_oh_my_sage_env() {
     local gateway_host="${wizard_gateway_host:-${existing_gateway_host:-192.168.0.5}}"
     local gateway_type="$(normalize_gateway_type "${wizard_gateway_type:-${existing_gateway_type:-physical}}")"
     local gateway_url="$(gateway_url_from_host_and_type "${gateway_host}" "${gateway_type}")"
-    local app_port="${wizard_app_port:-${APP_PORT:-3000}}"
+    local app_port="${wizard_app_port:-${APP_PORT:-3010}}"
     local tmp_file="${CONFIG_FILE}.tmp"
 
     cat > "${tmp_file}" <<EOF

@@ -1,11 +1,9 @@
 'use client';
 
-import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {Button, Collapse, Input, message, Space, Tooltip, Typography} from 'antd';
+import React, {useCallback, useEffect, useImperativeHandle, useRef, useState} from 'react';
+import {Button, Collapse, Input, message, Space, Typography} from 'antd';
 import {
     FileSearchOutlined,
-    LoginOutlined,
-    ReloadOutlined,
     SettingOutlined,
     UploadOutlined,
 } from '@ant-design/icons';
@@ -21,7 +19,18 @@ const {TextArea} = Input;
 
 interface PasscodeCapturePanelProps {
     disabled?: boolean;
-    onInsert: (passcode: string) => void;
+    onPasscodeFetched: (passcode: string) => void;
+    onStateChange?: (state: PasscodeCapturePanelState) => void;
+}
+
+export interface PasscodeCapturePanelHandle {
+    refreshPasscode: () => Promise<void>;
+}
+
+export interface PasscodeCapturePanelState {
+    canRefresh: boolean;
+    fetching: boolean;
+    hydrated: boolean;
 }
 
 interface PasscodeFetchResponse {
@@ -36,11 +45,11 @@ interface FetchPasscodeOptions {
     loadingText?: string;
 }
 
-const storageKey = 'oh_my_sage_mijia_passcode_request';
+const storageKey = 'mijia_geek_ai_mijia_passcode_request';
 
-export default function PasscodeCapturePanel({disabled, onInsert}: PasscodeCapturePanelProps) {
+const PasscodeCapturePanel = React.forwardRef<PasscodeCapturePanelHandle, PasscodeCapturePanelProps>(
+function PasscodeCapturePanel({disabled, onPasscodeFetched, onStateChange}, ref) {
     const [config, setConfig] = useState<MijiaPasscodeRequestConfig>(defaultMijiaPasscodeRequestConfig);
-    const [passcode, setPasscode] = useState('');
     const [status, setStatus] = useState('上传或拖入 HAR 文件后自动解析');
     const [isDragging, setIsDragging] = useState(false);
     const [parsing, setParsing] = useState(false);
@@ -94,7 +103,6 @@ export default function PasscodeCapturePanel({disabled, onInsert}: PasscodeCaptu
         }
 
         setFetching(true);
-        setPasscode('');
         setStatus(options.loadingText || '正在请求登录码...');
         try {
             const response = await fetch('/api/passcode', {
@@ -105,8 +113,8 @@ export default function PasscodeCapturePanel({disabled, onInsert}: PasscodeCaptu
             const result: PasscodeFetchResponse = await response.json();
 
             if (result.success && result.passcode) {
-                setPasscode(result.passcode);
-                setStatus('登录码已获取，可点击插入');
+                onPasscodeFetched(result.passcode);
+                setStatus('登录码已获取，已自动填入登录框');
                 if (!options.silent) {
                     message.success('登录码已获取');
                 }
@@ -127,7 +135,11 @@ export default function PasscodeCapturePanel({disabled, onInsert}: PasscodeCaptu
         } finally {
             setFetching(false);
         }
-    }, [config]);
+    }, [config, onPasscodeFetched]);
+
+    useImperativeHandle(ref, () => ({
+        refreshPasscode: () => fetchPasscode(),
+    }), [fetchPasscode]);
 
     useEffect(() => {
         if (!hydrated || disabled || !initialAutoFetchConfigRef.current) return;
@@ -142,7 +154,6 @@ export default function PasscodeCapturePanel({disabled, onInsert}: PasscodeCaptu
 
     const handleFile = useCallback(async (file: File) => {
         setParsing(true);
-        setPasscode('');
         try {
             const text = await file.text();
             const result = parseMijiaPasscodeCaptureText(text);
@@ -179,8 +190,15 @@ export default function PasscodeCapturePanel({disabled, onInsert}: PasscodeCaptu
         }
     };
 
-    const canInsert = Boolean(passcode) && !disabled;
     const canRefresh = Boolean(config.requestUrl && config.passcodeRequestBody) && !disabled;
+
+    useEffect(() => {
+        onStateChange?.({
+            canRefresh,
+            fetching,
+            hydrated,
+        });
+    }, [canRefresh, fetching, hydrated, onStateChange]);
 
     return (
         <div
@@ -198,8 +216,8 @@ export default function PasscodeCapturePanel({disabled, onInsert}: PasscodeCaptu
                 marginTop: 14,
                 padding: 12,
                 borderRadius: 'var(--radius-md)',
-                border: `1px solid ${isDragging ? 'rgba(6,182,212,0.55)' : 'var(--border-subtle)'}`,
-                background: isDragging ? 'rgba(6,182,212,0.1)' : 'rgba(255,255,255,0.035)',
+                border: `1px solid ${isDragging ? 'var(--border-active)' : 'var(--border-subtle)'}`,
+                background: isDragging ? 'var(--accent-soft)' : 'var(--bg-surface)',
                 transition: 'border-color 0.2s var(--ease-out), background 0.2s var(--ease-out)',
                 textAlign: 'left',
             }}
@@ -214,7 +232,7 @@ export default function PasscodeCapturePanel({disabled, onInsert}: PasscodeCaptu
 
             <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10}}>
                 <Space size={8}>
-                    <FileSearchOutlined style={{color: '#67e8f9'}}/>
+                    <FileSearchOutlined style={{color: 'var(--accent)'}}/>
                     <Text style={{color: 'var(--text-secondary)', fontSize: 12, fontWeight: 600}}>
                         抓包获取验证码
                     </Text>
@@ -235,60 +253,12 @@ export default function PasscodeCapturePanel({disabled, onInsert}: PasscodeCaptu
                 padding: '10px 12px',
                 borderRadius: 'var(--radius-sm)',
                 border: '1px dashed var(--border-default)',
-                color: isDragging ? '#a5f3fc' : 'var(--text-muted)',
+                color: isDragging ? 'var(--accent-hover)' : 'var(--text-muted)',
                 fontSize: 12,
                 lineHeight: 1.5,
                 textAlign: 'center',
             }}>
                 {isDragging ? '松开后解析抓包文件' : '拖入 Stream 导出的 HAR，或点击 HAR 上传'}
-            </div>
-
-            <div style={{
-                marginTop: 10,
-                minHeight: 46,
-                padding: '9px 10px',
-                borderRadius: 'var(--radius-sm)',
-                background: 'rgba(0,0,0,0.22)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 10,
-            }}>
-                <div style={{minWidth: 0}}>
-                    <Text style={{display: 'block', color: 'var(--text-muted)', fontSize: 11}}>
-                        已获取验证码
-                    </Text>
-                    <Text style={{
-                        color: passcode ? 'var(--text-bright)' : 'var(--text-muted)',
-                        fontSize: passcode ? 20 : 14,
-                        fontWeight: 700,
-                        letterSpacing: passcode ? 4 : 0,
-                        lineHeight: '24px',
-                    }}>
-                        {passcode || '------'}
-                    </Text>
-                </div>
-                <Space size={6}>
-                    <Tooltip title="重新请求验证码">
-                        <Button
-                            size="small"
-                            shape="circle"
-                            icon={<ReloadOutlined/>}
-                            loading={fetching}
-                            disabled={!canRefresh}
-                            onClick={() => fetchPasscode()}
-                        />
-                    </Tooltip>
-                    <Button
-                        size="small"
-                        type="primary"
-                        icon={<LoginOutlined/>}
-                        disabled={!canInsert}
-                        onClick={() => onInsert(passcode)}
-                    >
-                        插入
-                    </Button>
-                </Space>
             </div>
 
             <Text style={{
@@ -376,20 +346,15 @@ export default function PasscodeCapturePanel({disabled, onInsert}: PasscodeCaptu
                                     onChange={event => updateConfig('miotRequestModel', event.target.value)}
                                 />
                             </div>
-                            <Button
-                                size="small"
-                                type="primary"
-                                icon={<ReloadOutlined/>}
-                                loading={fetching}
-                                disabled={!canRefresh}
-                                onClick={() => fetchPasscode()}
-                            >
-                                获取验证码
-                            </Button>
+                            <Text style={{color: 'var(--text-muted)', fontSize: 11}}>
+                                保存后可回到登录框右侧点击刷新获取验证码。
+                            </Text>
                         </div>
                     ),
                 }]}
             />
         </div>
     );
-}
+});
+
+export default PasscodeCapturePanel;

@@ -7,16 +7,32 @@ import type { Graph, GraphSummary, CreateGraphInput, ValidationError } from '../
 import type { ToolResponse } from '../types';
 import { validateGraph, layoutNodes } from './base';
 
+interface GraphListItem {
+    id: string;
+    enable?: boolean;
+    userData?: {
+        name?: string;
+        lastUpdateTime?: number;
+        transform?: {
+            x: number;
+            y: number;
+            scale: number;
+            rotate: number;
+        };
+    };
+    createTime?: number;
+}
+
 export async function getGraphs(gateway: GatewayClient): Promise<ToolResponse<GraphSummary[]>> {
     try {
-        const graphs = await gateway.callApi<Array<{ id: string; enable?: boolean; userData?: { name?: string; lastUpdateTime?: number }; createTime?: number }>>('getGraphList', {}, 10000);
+        const graphs = await gateway.callApi<GraphListItem[]>('getGraphList', {}, 10000);
         const graphList = Array.isArray(graphs) ? graphs : [];
         return {
             success: true,
             data: graphList.map((graph) => ({
                 id: graph.id,
                 name: graph.userData?.name || graph.id,
-                enable: graph.enable ?? false,
+                enable: graph.enable !== false,
                 createTime: graph.createTime,
                 updateTime: graph.userData?.lastUpdateTime,
             })),
@@ -86,9 +102,9 @@ export async function createGraph(gateway: GatewayClient, input: CreateGraphInpu
 export async function updateGraph(gateway: GatewayClient, id: string, input: Partial<CreateGraphInput>): Promise<ToolResponse> {
     try {
         const existing = await gateway.callApi<Graph>('getGraph', { id }, 10000);
-        const graphList = await gateway.callApi('getGraphList', {}, 10000);
+        const graphList = await gateway.callApi<GraphListItem[]>('getGraphList', {}, 10000);
         const graphInfo = Array.isArray(graphList)
-            ? graphList.find((g: Graph) => g.id === id)
+            ? graphList.find((g) => g.id === id)
             : null;
 
         const inputNodes = input.nodes || existing.nodes;
@@ -111,12 +127,12 @@ export async function updateGraph(gateway: GatewayClient, id: string, input: Par
             nodes: processedNodes,
             cfg: {
                 id,
-                enable: input.enable ?? true,
+                enable: input.enable ?? graphInfo?.enable ?? existing.cfg?.enable ?? true,
                 uiType: 'graph',
                 userData: {
-                    name: input.name || (graphInfo as unknown as { userData?: { name?: string } })?.userData?.name || '规则',
+                    name: input.name || graphInfo?.userData?.name || existing.cfg?.userData?.name || '规则',
                     lastUpdateTime: Date.now(),
-                    transform: (graphInfo as unknown as { userData?: { transform?: { x: number; y: number; scale: number; rotate: number } } })?.userData?.transform || { x: 0, y: 0, scale: 1, rotate: 0 },
+                    transform: graphInfo?.userData?.transform || existing.cfg?.userData?.transform || { x: 0, y: 0, scale: 1, rotate: 0 },
                 },
             },
         };
@@ -148,9 +164,9 @@ export async function deleteGraph(gateway: GatewayClient, id: string): Promise<T
 
 export async function toggleGraph(gateway: GatewayClient, id: string, enable: boolean): Promise<ToolResponse> {
     try {
-        const graphList = await gateway.callApi('getGraphList', {}, 10000);
+        const graphList = await gateway.callApi<GraphListItem[]>('getGraphList', {}, 10000);
         const graphInfo = Array.isArray(graphList)
-            ? graphList.find((g: Graph) => g.id === id)
+            ? graphList.find((g) => g.id === id)
             : null;
 
         if (!graphInfo) {
@@ -161,9 +177,9 @@ export async function toggleGraph(gateway: GatewayClient, id: string, enable: bo
             id,
             enable,
             userData: {
-                name: (graphInfo as unknown as { userData?: { name?: string } })?.userData?.name || '未命名规则',
+                name: graphInfo.userData?.name || '未命名规则',
                 lastUpdateTime: Date.now(),
-                transform: (graphInfo as unknown as { userData?: { transform?: { x: number; y: number; scale: number; rotate: number } } })?.userData?.transform || { x: 0, y: 0, scale: 1, rotate: 0 },
+                transform: graphInfo.userData?.transform || { x: 0, y: 0, scale: 1, rotate: 0 },
             },
         }, 10000);
 

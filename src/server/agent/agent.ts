@@ -1,5 +1,5 @@
 /**
- * oh-my-sage - Agent 核心
+ * mijia-geek-ai - Agent 核心
  * 实现工具驱动的 Agent 循环
  */
 

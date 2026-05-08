@@ -59,7 +59,7 @@
         "type": "text",
         "field": "wizard_app_port",
         "label": "应用访问端口",
-        "initValue": "3000",
+        "initValue": "3010",
         "rules": [
           {
             "required": true,

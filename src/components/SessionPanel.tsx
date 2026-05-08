@@ -59,7 +59,7 @@ export default function SessionPanel({
             }}>
                 <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
                     <Space size={8}>
-                        <HistoryOutlined style={{color: '#818cf8', fontSize: 15}}/>
+                        <HistoryOutlined style={{color: 'var(--accent)', fontSize: 15}}/>
                         <Text strong style={{color: 'var(--text-bright)', fontSize: 14}}>对话历史</Text>
                     </Space>
                     <Space size={6}>
@@ -93,7 +93,7 @@ export default function SessionPanel({
             <div style={{flex: 1, minHeight: 0, overflow: 'auto', padding: '8px'}}>
                 {loading ? (
                     <div style={{textAlign: 'center', padding: 40}}>
-                        <Spin indicator={<SyncOutlined style={{fontSize: 20, color: '#818cf8'}} spin/>}/>
+                        <Spin indicator={<SyncOutlined style={{fontSize: 20, color: 'var(--accent)'}} spin/>}/>
                     </div>
                 ) : sessions.length === 0 ? (
                     <div style={{textAlign: 'center', padding: '40px 20px'}}>
@@ -112,8 +112,8 @@ export default function SessionPanel({
                                     marginBottom: 4,
                                     cursor: 'pointer',
                                     borderRadius: 'var(--radius-md)',
-                                    background: isActive ? 'rgba(99,102,241,0.1)' : 'transparent',
-                                    border: `1px solid ${isActive ? 'rgba(99,102,241,0.2)' : 'transparent'}`,
+                                    background: isActive ? 'var(--accent-soft)' : 'transparent',
+                                    border: `1px solid ${isActive ? 'var(--accent-border)' : 'transparent'}`,
                                     transition: 'all 0.2s var(--ease-out)',
                                     position: 'relative',
                                 }}

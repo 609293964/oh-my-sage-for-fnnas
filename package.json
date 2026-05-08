@@ -1,11 +1,11 @@
 {
-  "name": "oh-my-sage",
-  "version": "0.0.2",
+  "name": "mijia-geek-ai",
+  "version": "0.0.3",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "prepare:fpk": "node scripts/prepare-fpk.mjs",
-    "build:fpk": "npm run build && npm run prepare:fpk && fnpack build -d fnnas.oh-my-sage",
+    "build:fpk": "npm run build && npm run prepare:fpk && fnpack build -d fnnas.mijia-geek-ai",
     "start": "next start",
     "lint": "next lint",
     "test": "npx tsx src/test.ts"

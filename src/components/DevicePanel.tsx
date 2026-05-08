@@ -116,7 +116,7 @@ export default function DevicePanel({
     return (
         <div style={{height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column'}}>
             {/* 头部 */}
-            <div style={{padding: '16px', borderBottom: '1px solid #f0f0f0'}}>
+            <div style={{padding: '16px', borderBottom: '1px solid var(--border-subtle)'}}>
                 <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12}}>
                     <Text strong>设备列表</Text>
                     <Button
@@ -177,14 +177,22 @@ export default function DevicePanel({
                                                 justifyContent: 'space-between',
                                                 alignItems: 'center',
                                                 padding: '8px 0',
-                                                borderBottom: '1px solid #f5f5f5',
+                                                borderBottom: '1px solid var(--border-subtle)',
                                             }}
                                         >
                                             <Space>
                                                 {getDeviceIcon(device.model)}
                                                 <Text>{device.name}</Text>
                                             </Space>
-                                            <Tag color={device.online ? 'success' : 'default'}>
+                                            <Tag
+                                                color={device.online ? 'success' : undefined}
+                                                style={device.online ? undefined : {
+                                                    marginInlineEnd: 0,
+                                                    color: 'var(--danger)',
+                                                    borderColor: 'var(--danger)',
+                                                    background: 'var(--danger-soft)',
+                                                }}
+                                            >
                                                 {device.online ? '在线' : '离线'}
                                             </Tag>
                                         </div>

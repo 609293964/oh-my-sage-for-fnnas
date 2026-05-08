@@ -3,4 +3,4 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "${SCRIPT_DIR}/env_common"
 
-write_oh_my_sage_env
+write_mijia_geek_ai_env

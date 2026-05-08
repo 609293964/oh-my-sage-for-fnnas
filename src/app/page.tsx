@@ -8,6 +8,7 @@ import DevicePanel from '@/components/DevicePanel';
 import GraphPanel from '@/components/GraphPanel';
 import SessionPanel from '@/components/SessionPanel';
 import LoginPage from '@/components/LoginPage';
+import ThemeToggle from '@/components/ThemeToggle';
 
 const {Header, Sider, Content} = Layout;
 const {Text} = Typography;
@@ -204,6 +205,11 @@ export default function HomePage() {
         }
     };
 
+    const handleGraphChanged = useCallback(() => {
+        graphsLoadedRef.current = true;
+        loadGraphs();
+    }, [loadGraphs]);
+
     const handleTabChange = (key: string) => {
         if (key === 'graphs' && !graphsLoadedRef.current) {
             loadGraphs();
@@ -239,24 +245,24 @@ export default function HomePage() {
                     }}>
                         <RobotOutlined style={{fontSize: 16, color: '#fff'}}/>
                     </div>
-                    <span className="gradient-text" style={{fontSize: 17, fontWeight: 700, letterSpacing: -0.3}}>
-            Oh My Sage
+                    <span className="gradient-text" style={{fontSize: 17, fontWeight: 700, letterSpacing: 0}}>
+            米家自动化极客版 AI Agent
           </span>
-                    <Text style={{color: 'var(--text-muted)', fontSize: 12}}>
-                        米家自动化极客版 AI Agent
-                    </Text>
                 </Space>
-                <Space size={6}>
-                    <div style={{
-                        width: 7,
-                        height: 7,
-                        borderRadius: '50%',
-                        background: '#10b981',
-                        boxShadow: '0 0 8px rgba(16,185,129,0.5)',
-                    }}/>
-                    <Text style={{color: 'var(--text-secondary)', fontSize: 12}}>
-                        {stats.online}/{stats.total} 设备在线
-                    </Text>
+                <Space className="app-header-actions" size={12}>
+                    <Space className="app-device-status" size={6}>
+                        <div style={{
+                            width: 7,
+                            height: 7,
+                            borderRadius: '50%',
+                            background: '#10b981',
+                            boxShadow: '0 0 8px rgba(16,185,129,0.5)',
+                        }}/>
+                        <Text style={{color: 'var(--text-secondary)', fontSize: 12}}>
+                            {stats.online}/{stats.total} 设备在线
+                        </Text>
+                    </Space>
+                    <ThemeToggle/>
                 </Space>
             </Header>
 
@@ -300,6 +306,7 @@ export default function HomePage() {
                                     children: (
                                         <GraphPanel
                                             graphs={graphs}
+                                            devices={devices}
                                             loading={graphsLoading}
                                             onRefresh={loadGraphs}
                                             onToggle={handleToggleGraph}
@@ -336,6 +343,7 @@ export default function HomePage() {
                                 initialMessages={currentMessages}
                                 onSessionCreated={handleSessionCreated}
                                 onResetSession={handleResetSession}
+                                onGraphChanged={handleGraphChanged}
                             />
                         </div>
 

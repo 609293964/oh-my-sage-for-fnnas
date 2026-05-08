@@ -1,5 +1,5 @@
 /**
- * oh-my-sage - AI 模型配置
+ * mijia-geek-ai - AI 模型配置
  * 仅支持 OpenAI 兼容接口
  */
 

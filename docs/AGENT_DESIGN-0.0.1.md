@@ -1,4 +1,4 @@
-# oh-my-sage 重构设计文档
+# mijia-geek-ai 重构设计文档
 
 ## 概述
 
