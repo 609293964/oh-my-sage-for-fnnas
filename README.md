@@ -20,6 +20,15 @@ Mijia Geek AI 是一个 Web 界面的工具驱动 AI Agent，通过自然语言�
 
 ---
 
+## 界面预览
+
+![图1](./docs/images/1.png)
+![图2](./docs/images/2.png)
+![图3](./docs/images/3.png)
+![图4](./docs/images/4.png)
+
+---
+
 ## 在 fnOS 上安装和使用
 
 1. **环境准备**：在 fnOS 应用中心安装 **Node.js v22**。准备 OpenAI 兼容的 LLM 接口及小米中枢网关的局域网 IP。
