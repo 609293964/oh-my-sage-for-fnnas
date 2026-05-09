@@ -6,7 +6,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)](https://www.typescriptlang.org/)
 [![Vercel AI SDK](https://img.shields.io/badge/Vercel%20AI%20SDK-3-purple)](https://sdk.vercel.ai/)
 
-Mijia Geek AI 是一个 Web 界面的工具驱动 AI Agent，通过自然语言对话帮助你连接小米中枢网关、查看设备、创建和管理米家自动化极客版规则。无需手机抓包，支持在网页端直接填入验证码或自动解析请求获取验证码，实现免手机登录。
+Mijia Geek AI 是一个 Web 界面的工具驱动 AI Agent，通过自然语言对话帮助你连接小米中枢网关、查看设备、创建和管理米家自动化极客版规则。可通过手机抓包，支持在网页端直接填入验证码或自动解析请求获取验证码，实现免手机登录。
 
 ---
 
