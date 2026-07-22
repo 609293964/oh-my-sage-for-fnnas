@@ -149,6 +149,12 @@ metadata:
 {"id":"$ID","type":"deviceOutput","cfg":{"urn":"$URN","name":"deviceOutput","version":1},"props":{"did":"$DID","siid":$SIID,"piid":$PIID,"value":$VALUE},"inputs":{"trigger":null},"outputs":{"output":[]}}
 ```
 
+### deviceOutput - 使用变量动态设置属性
+```json
+{"id":"$ID","type":"deviceOutput","cfg":{"urn":"$URN","name":"deviceOutput","version":1},"props":{"did":"$DID","siid":$SIID,"piid":$PIID,"id":"$VAR_ID","scope":"$SCOPE","dtype":"number","min":$MIN,"max":$MAX,"step":$STEP},"inputs":{"trigger":null},"outputs":{"output":[]}}
+```
+⚠️ 极客版 UI 实测支持将规则变量直接写入设备属性。`dtype` 数值属性用 `number`，`min/max/step` 必须与目标 MIOT 属性范围一致。
+
 ### deviceOutput - 控制设备（执行动作）
 ```json
 {"id":"$ID","type":"deviceOutput","cfg":{"urn":"$URN","name":"deviceOutput","version":1},"props":{"did":"$DID","siid":$SIID,"aiid":$AIID,"ins":[{"piid":$PIID,"value":$VALUE}]},"inputs":{"trigger":null},"outputs":{"output":[]}}
