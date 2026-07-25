@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
         const {graph} = await request.json();
         if (!graph?.id || !Array.isArray(graph.nodes)) return NextResponse.json({success: false, error: 'graph 参数无效'}, {status: 400});
         const report = await validateGraphCapabilitiesWithGateway(getGateway()!, graph);
-        return NextResponse.json(report, {status: report.valid ? 200 : 400});
+        return NextResponse.json(report);
     } catch (error) {
         return NextResponse.json({success: false, error: `规则能力校验失败: ${error}`}, {status: 500});
     }

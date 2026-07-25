@@ -2,7 +2,7 @@
 
 import React, {useState, useCallback, useRef} from 'react';
 import {Input, Button, message, Typography} from 'antd';
-import {RobotOutlined, LockOutlined, ThunderboltFilled} from '@ant-design/icons';
+import {LockOutlined, ThunderboltFilled} from '@ant-design/icons';
 
 const {Text} = Typography;
 

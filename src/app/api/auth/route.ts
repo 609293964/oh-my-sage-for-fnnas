@@ -14,9 +14,9 @@ export const runtime = 'nodejs';
  */
 export async function POST(request: NextRequest) {
     try {
-        const {passcode, gatewayUrl} = await request.json();
+        const {passcode} = await request.json();
 
-        if (!passcode || passcode.length !== 6) {
+        if (typeof passcode !== 'string' || !/^\d{6}$/.test(passcode)) {
             return NextResponse.json({
                 success: false,
                 error: '登录码格式错误',
@@ -24,7 +24,10 @@ export async function POST(request: NextRequest) {
             }, {status: 400});
         }
 
-        await connectGateway(passcode, gatewayUrl);
+        if (!process.env.GATEWAY_URL) {
+            return NextResponse.json({success: false, error: '未配置网关地址', message: '请在服务端设置 GATEWAY_URL'}, {status: 400});
+        }
+        await connectGateway(passcode);
 
         return NextResponse.json({
             success: true,
@@ -32,10 +35,11 @@ export async function POST(request: NextRequest) {
         });
     } catch (error) {
         console.error('认证失败:', error);
+        const message = error instanceof Error ? error.message : '未知错误';
         return NextResponse.json({
             success: false,
             error: '认证失败',
-            message: error instanceof Error ? error.message : '未知错误',
-        }, {status: 500});
+            message,
+        }, {status: /认证|登录码/.test(message) ? 401 : 502});
     }
 }

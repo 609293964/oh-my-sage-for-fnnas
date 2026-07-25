@@ -6,8 +6,16 @@
 import {NextRequest, NextResponse} from 'next/server';
 import {getGateway, isGatewayConnected} from '@/server/gateway/shared';
 import {createGraph, deleteGraph, toggleGraph, updateGraph} from '@/core';
+import {z} from 'zod';
 
 export const runtime = 'nodejs';
+
+const variableSchema = z.discriminatedUnion('type', [
+    z.object({id: z.string().regex(/^[a-zA-Z0-9]+$/), type: z.literal('number'), value: z.number(), name: z.string().trim().min(1).optional()}),
+    z.object({id: z.string().regex(/^[a-zA-Z0-9]+$/), type: z.literal('string'), value: z.string(), name: z.string().trim().min(1).optional()}),
+]);
+const createSchema = z.object({name: z.string().trim().min(1), nodes: z.array(z.any()), variables: z.array(variableSchema).optional(), enable: z.boolean().optional()});
+const updateSchema = z.object({id: z.string().min(1), name: z.string().trim().min(1).optional(), nodes: z.array(z.any()).optional(), enable: z.boolean().optional()}).refine(value => value.name !== undefined || value.nodes !== undefined || value.enable !== undefined, '至少提供一个更新字段');
 
 /**
  * GET 请求处理
@@ -62,12 +70,11 @@ export async function GET() {
 export async function POST(request: NextRequest) {
     try {
         if (!isGatewayConnected()) return NextResponse.json({success: false, error: '未连接到网关'}, {status: 400});
-        const {name, nodes, variables, enable = true} = await request.json();
-        if (typeof name !== 'string' || !name.trim() || !Array.isArray(nodes)) {
-            return NextResponse.json({success: false, error: 'name 和 nodes 参数无效'}, {status: 400});
-        }
+        const parsed = createSchema.safeParse(await request.json());
+        if (!parsed.success) return NextResponse.json({success: false, error: '规则参数无效', details: parsed.error.issues}, {status: 400});
+        const {name, nodes, variables, enable = true} = parsed.data;
         const result = await createGraph(getGateway()!, {name, nodes, variables, enable});
-        return NextResponse.json(result, {status: result.success ? 201 : 400});
+        return NextResponse.json(result, {status: result.success ? 201 : 502});
     } catch (error) {
         return NextResponse.json({success: false, error: `创建规则失败: ${error}`}, {status: 500});
     }
@@ -76,10 +83,11 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
     try {
         if (!isGatewayConnected()) return NextResponse.json({success: false, error: '未连接到网关'}, {status: 400});
-        const {id, name, nodes, enable} = await request.json();
-        if (typeof id !== 'string' || !id) return NextResponse.json({success: false, error: '缺少规则 ID'}, {status: 400});
+        const parsed = updateSchema.safeParse(await request.json());
+        if (!parsed.success) return NextResponse.json({success: false, error: '规则参数无效', details: parsed.error.issues}, {status: 400});
+        const {id, name, nodes, enable} = parsed.data;
         const result = await updateGraph(getGateway()!, id, {name, nodes, enable});
-        return NextResponse.json(result, {status: result.success ? 200 : 400});
+        return NextResponse.json(result, {status: result.success ? 200 : 502});
     } catch (error) {
         return NextResponse.json({success: false, error: `更新规则失败: ${error}`}, {status: 500});
     }

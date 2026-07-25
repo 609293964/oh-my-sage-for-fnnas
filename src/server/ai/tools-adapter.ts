@@ -213,11 +213,9 @@ export function createCoreTools(gateway: GatewayClient) {
 
         create_variable: defineTool({
             description: '创建自动化变量',
-            parameters: z.discriminatedUnion('type', [
-                z.object({id: z.string().regex(/^[a-zA-Z0-9]+$/), type: z.literal('number'), value: z.number(), name: z.string().trim().min(1).optional(), scope: z.string().optional()}),
-                z.object({id: z.string().regex(/^[a-zA-Z0-9]+$/), type: z.literal('string'), value: z.string(), name: z.string().trim().min(1).optional(), scope: z.string().optional()}),
-            ]),
+            parameters: z.object({id: z.string().regex(/^[a-zA-Z0-9]+$/), type: z.enum(['number', 'string']), value: z.union([z.number(), z.string()]), name: z.string().trim().min(1).optional(), scope: z.string().optional()}),
             execute: async ({id, type, value, name, scope = 'global'}) => {
+                if (typeof value !== type) return {success: false, error: 'value 必须与 type 匹配'};
                 return createVariable(gateway, id, type, value, name, scope);
             },
         }),
