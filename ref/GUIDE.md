@@ -45,7 +45,7 @@
 5. ECJPAKE Round Two (客户端 → 服务器) ← 收到服务器 Round One 后立即发送
 6. ECJPAKE Round Two (服务器 → 客户端)
 7. SESSION_KEY_EXCHANGE (客户端先发送)
-8. 安全会话建立
+8. 安全 Session 建立
 ```
 
 ---

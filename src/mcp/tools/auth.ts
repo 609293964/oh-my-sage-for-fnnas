@@ -19,7 +19,7 @@ export function registerAuthTools(
     "mijia_auth",
     {
       title: "连接米家网关",
-      description: `连接米家网关并建立认证会话。
+      description: `连接米家网关并建立认证 Session。
 
 此工具必须在调用其他任何工具之前调用，用于建立与米家网关的安全连接。
 

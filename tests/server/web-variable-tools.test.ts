@@ -3,7 +3,7 @@ import test from 'node:test';
 import type {GatewayClient} from '../../src/core/gateway/client';
 import {createCoreTools} from '../../src/server/ai/tools-adapter';
 
-test('网页端智能体公开完整变量生命周期工具', () => {
+test('Web Agent 公开完整变量生命周期工具', () => {
     const tools = createCoreTools({} as GatewayClient) as any;
     for (const name of ['create_variable', 'delete_variable', 'get_variable_value', 'get_variable_config']) {
         assert.equal(typeof tools[name]?.execute, 'function');

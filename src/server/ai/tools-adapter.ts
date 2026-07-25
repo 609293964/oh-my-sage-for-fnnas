@@ -288,9 +288,9 @@ export function createCoreTools(gateway: GatewayClient) {
         }),
 
         activate_skill: defineTool({
-            description: '激活指定的 skill',
+            description: '激活指定的 Skill',
             parameters: z.object({
-                name: z.string().describe('skill 名称'),
+                name: z.string().describe('Skill 名称'),
             }),
             execute: async ({name}) => {
                 const skill = getSkillByName(name);
@@ -299,7 +299,7 @@ export function createCoreTools(gateway: GatewayClient) {
                     const available = catalog.map(s => s.name).join(', ');
                     return {
                         success: false,
-                        error: `Skill "${name}" 不存在。可用的 skills: ${available}`,
+                        error: `Skill "${name}" 不存在。可用的 Skills: ${available}`,
                     };
                 }
 
@@ -308,16 +308,16 @@ export function createCoreTools(gateway: GatewayClient) {
                     skill: skill.name,
                     content: formatSkillContent(skill),
                     resources: skill.resources,
-                    message: `已激活 skill: ${skill.name}`,
+                    message: `已激活 Skill: ${skill.name}`,
                 };
             },
         }),
 
         read_skill_file: defineTool({
-            description: '读取 skill 目录中的资源文件',
+            description: '读取 Skill 目录中的资源文件',
             parameters: z.object({
-                skillName: z.string().describe('skill 名称'),
-                filePath: z.string().describe('相对于 skill 目录的文件路径'),
+                skillName: z.string().describe('Skill 名称'),
+                filePath: z.string().describe('相对于 Skill 目录的文件路径'),
             }),
             execute: async ({skillName, filePath}) => {
                 const content = readSkillFile(skillName, filePath);

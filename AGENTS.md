@@ -70,7 +70,7 @@ Progressive disclosure in `.agents/skills/`:
 - Layer 2: Instructions (full SKILL.md via `activate_skill` tool)  
 - Layer 3: Resources (files in `references/` via `read_skill_file` tool)
 
-**Critical skill**: `mijia-automation` - Required for creating automation rules via MCP. Located at `.agents/skills/mijia-automation/SKILL.md`.
+**Critical Skill**: `mijia-automation` - Required for creating automation rules via MCP. Located at `.agents/skills/mijia-automation/SKILL.md`.
 
 ## Code Conventions
 

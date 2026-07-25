@@ -420,7 +420,7 @@ export class GatewayClient {
 
     async callApi<T = unknown>(method: string, params: Record<string, unknown> = {}, timeout: number = 5000): Promise<T> {
         if (!this.secureEstablished) {
-            throw new Error('Secure session not established');
+            throw new Error('Secure Session not established');
         }
 
         const requestId = this.sessionIdCounter++;

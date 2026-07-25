@@ -3,7 +3,7 @@
  * 动态加载 .agents/skills/ 目录下的 SKILL.md 文件
  *
  * 支持渐进式披露（Progressive Disclosure）：
- * - 第一层（Catalog）：name + description（~50-100 tokens per skill）
+ * - 第一层（Catalog）：name + description（~50-100 tokens per Skill）
  * - 第二层（Instructions）：完整 SKILL.md body（<5000 tokens）
  * - 第三层（Resources）：references/, scripts/, assets/ 中的文件
  */
@@ -26,7 +26,7 @@ export interface SkillMeta {
 export interface Skill extends SkillMeta {
     location: string;     // SKILL.md 文件绝对路径
     content: string;      // SKILL.md body 内容（不含 frontmatter）
-    baseDir: string;      // skill 目录路径
+    baseDir: string;      // Skill 目录路径
     resources: string[];  // 可用资源文件列表
 }
 
@@ -116,7 +116,7 @@ function listResources(baseDir: string): string[] {
 }
 
 /**
- * 扫描目录下的所有 skills
+ * 扫描目录下的所有 Skills
  */
 function scanSkillsDirectory(baseDir: string): Skill[] {
     const skills: Skill[] = [];
@@ -147,12 +147,12 @@ function scanSkillsDirectory(baseDir: string): Skill[] {
 }
 
 /**
- * 加载所有 skills
+ * 加载所有 Skills
  */
 export function loadSkills(): Skill[] {
     const skillsMap = new Map<string, Skill>();
 
-    // 1. 项目级 skills
+    // 1. 项目级 Skills
     const projectSkillsDir = path.join(process.cwd(), '.agents', 'skills');
     const projectSkills = scanSkillsDirectory(projectSkillsDir);
     for (const skill of projectSkills) {
@@ -160,7 +160,7 @@ export function loadSkills(): Skill[] {
         console.log(`[Skill] 已加载（项目级）: ${skill.name}`);
     }
 
-    // 2. 用户级 skills
+    // 2. 用户级 Skills
     const homeDir = process.env.HOME || process.env.USERPROFILE;
     if (homeDir) {
         const userSkillsDir = path.join(homeDir, '.agents', 'skills');
@@ -176,7 +176,7 @@ export function loadSkills(): Skill[] {
     }
 
     const skills = Array.from(skillsMap.values());
-    console.log(`[Skill] 共加载 ${skills.length} 个 skills`);
+    console.log(`[Skill] 共加载 ${skills.length} 个 Skills`);
     return skills;
 }
 
@@ -184,7 +184,7 @@ export function loadSkills(): Skill[] {
 let cachedSkills: Skill[] | null = null;
 
 /**
- * 获取 skills（带缓存）
+ * 获取 Skills（带缓存）
  */
 export function getSkills(): Skill[] {
     if (cachedSkills === null) {
@@ -194,7 +194,7 @@ export function getSkills(): Skill[] {
 }
 
 /**
- * 获取 skill 元数据列表（渐进式披露第一层）
+ * 获取 Skill 元数据列表（渐进式披露第一层）
  * 只返回 name 和 description
  */
 export function getSkillCatalog(): SkillMeta[] {
@@ -205,14 +205,14 @@ export function getSkillCatalog(): SkillMeta[] {
 }
 
 /**
- * 根据名称获取 skill
+ * 根据名称获取 Skill
  */
 export function getSkillByName(name: string): Skill | null {
     return getSkills().find(s => s.name === name) || null;
 }
 
 /**
- * 格式化 skill catalog 为系统提示（渐进式披露第一层）
+ * 格式化 Skill catalog 为系统提示（渐进式披露第一层）
  * 只包含 name 和 description
  */
 export function formatSkillCatalogForPrompt(): string {
@@ -223,8 +223,8 @@ export function formatSkillCatalogForPrompt(): string {
     }
 
     let prompt = '\n\n## 可用的 Skills\n\n';
-    prompt += '以下 skills 提供了特定任务的专业指导。\n';
-    prompt += '当任务匹配某个 skill 的描述时，使用 activate_skill 工具加载其完整内容。\n\n';
+    prompt += '以下 Skills 提供了特定任务的专业指导。\n';
+    prompt += '当任务匹配某个 Skill 的描述时，使用 activate_skill 工具加载其完整内容。\n\n';
 
     for (const skill of catalog) {
         prompt += `- **${skill.name}**: ${skill.description}\n`;
@@ -234,7 +234,7 @@ export function formatSkillCatalogForPrompt(): string {
 }
 
 /**
- * 格式化 skill 完整内容（渐进式披露第二层）
+ * 格式化 Skill 完整内容（渐进式披露第二层）
  * 包含 SKILL.md body 和可用资源列表
  */
 export function formatSkillContent(skill: Skill): string {
@@ -254,7 +254,7 @@ export function formatSkillContent(skill: Skill): string {
 }
 
 /**
- * 读取 skill 目录中的文件（渐进式披露第三层）
+ * 读取 Skill 目录中的文件（渐进式披露第三层）
  */
 export function readSkillFile(skillName: string, filePath: string): string | null {
     const skill = getSkillByName(skillName);
@@ -265,9 +265,9 @@ export function readSkillFile(skillName: string, filePath: string): string | nul
 
     const absolutePath = path.resolve(skill.baseDir, filePath);
 
-    // 安全检查：确保引用在 skill 目录内
+    // 安全检查：确保引用在 Skill 目录内
     if (!absolutePath.startsWith(skill.baseDir)) {
-        console.warn(`[Skill] 引用路径超出 skill 目录: ${filePath}`);
+        console.warn(`[Skill] 引用路径超出 Skill 目录: ${filePath}`);
         return null;
     }
 

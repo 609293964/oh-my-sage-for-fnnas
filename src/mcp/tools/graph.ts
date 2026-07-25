@@ -187,7 +187,7 @@ export function registerGraphTools(
       title: "创建自动化规则",
       description: `创建新的自动化规则。
 
-⚠️ 重要：在调用此工具前，你必须先阅读并理解 mijia-automation skill 中的规则创建指南（使用 skill 工具加载）。该 skill 包含：
+⚠️ 重要：在调用此工具前，你必须先阅读并理解 mijia-automation Skill 中的规则创建指南（使用 Skill 工具加载）。该 Skill 包含：
 - 完整的节点类型模板（deviceInput, deviceOutput, condition, timeRange, delay 等）
 - 节点连接规则（outputs 格式、state/event 节点区别）
 - 关键校验规则（节点ID格式、inputs/outputs 要求）
@@ -200,7 +200,7 @@ export function registerGraphTools(
 
 参数：
   - name (string): 规则名称
-  - nodes (array): 节点列表，包含触发器、条件、动作等（必须符合 mijia-automation skill 中的模板规范）
+  - nodes (array): 节点列表，包含触发器、条件、动作等（必须符合 mijia-automation Skill 中的模板规范）
   - variables (array, optional): 同时创建的本规则变量；节点中使用 scope="rule"，系统会替换为真实作用域
   - enable (boolean, optional): 是否立即启用，默认 true
 
@@ -257,14 +257,14 @@ export function registerGraphTools(
       title: "更新自动化规则",
       description: `更新现有自动化规则。
 
-⚠️ 重要：如果更新 nodes 节点列表，你必须先阅读并理解 mijia-automation skill 中的规则创建指南（使用 skill 工具加载）。该 skill 包含完整的节点模板、连接规则和校验要求。
+⚠️ 重要：如果更新 nodes 节点列表，你必须先阅读并理解 mijia-automation Skill 中的规则创建指南（使用 Skill 工具加载）。该 Skill 包含完整的节点模板、连接规则和校验要求。
 
-如果只需要更新规则名称或启用状态，无需加载 skill。
+如果只需要更新规则名称或启用状态，无需加载 Skill。
 
 参数：
   - id (string): 规则ID
   - name (string, optional): 新规则名称
-  - nodes (array, optional): 新节点列表（必须符合 mijia-automation skill 中的模板规范）
+  - nodes (array, optional): 新节点列表（必须符合 mijia-automation Skill 中的模板规范）
   - enable (boolean, optional): 是否启用
 
 返回：
@@ -408,9 +408,9 @@ export function registerGraphTools(
       title: "校验规则完整性",
       description: `校验自动化规则的节点连接完整性。
 
-⚠️ 建议：在调用此工具前，先阅读 mijia-automation skill 了解节点构建规范（使用 skill 工具加载）。该 skill 包含所有节点模板和连接规则。
+⚠️ 建议：在调用此工具前，先阅读 mijia-automation Skill 了解节点构建规范（使用 Skill 工具加载）。该 Skill 包含所有节点模板和连接规则。
 
-此校验器会检查 mijia-automation skill 中定义的关键规则：
+此校验器会检查 mijia-automation Skill 中定义的关键规则：
 - 节点 ID 格式（只允许 [0-9a-zA-Z]）
 - outputs 连接格式（必须是 "nodeId.inputPort" 点分隔格式）
 - state 节点 vs event 节点的正确使用
@@ -423,7 +423,7 @@ export function registerGraphTools(
 参数：
   - graph (object): 完整规则对象
     - id (string): 规则ID
-    - nodes (array): 节点列表（必须符合 mijia-automation skill 规范）
+    - nodes (array): 节点列表（必须符合 mijia-automation Skill 规范）
     - cfg (object): 规则配置
 
 返回：

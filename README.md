@@ -57,7 +57,7 @@ git clone https://github.com/allocnode/oh-my-sage.git && cd oh-my-sage && npm in
 - "帮我查看米家设备"
 - "创建一个每天晚上8点关闭客厅灯的自动化规则"
 
-> ⚠️ **关于 Skill**：创建/更新自动化规则需要安装 `mijia-automation` skill。安装后 AI 助手会自动激活，无需手动操作。
+> ⚠️ **关于 Skill**：创建/更新自动化规则需要安装 `mijia-automation` Skill。安装后 AI 助手会自动激活，无需手动操作。
 
 ### Web 方式（一行命令启动）
 
@@ -116,9 +116,9 @@ npm link
 **Step 3: 安装 Skill（创建/更新规则必需）**
 
 **关于 Skill 的自动激活**：
-- 如果涉及到**创建规则**或**更新规则**，你需要先安装 `mijia-automation` skill
-- 一旦安装了 skill，AI 助手会在需要时**自动激活**，无需手动操作
-- 如果你没有安装 skill，AI 助手会提示你需要先安装
+- 如果涉及到**创建规则**或**更新规则**，你需要先安装 `mijia-automation` Skill
+- 一旦安装了 Skill，AI 助手会在需要时**自动激活**，无需手动操作
+- 如果你没有安装 Skill，AI 助手会提示你需要先安装
 
 **安装方式**：
 
@@ -157,8 +157,8 @@ Skill 位于 `.agents/skills/mijia-automation/` 目录下：
 | `mijia_get_device` | 获取设备详情+MIOT Spec能力 |
 | `mijia_get_graphs` | 获取自动化规则列表 |
 | `mijia_get_graph` | 获取规则详情 |
-| `mijia_create_graph` | 创建规则（⚠️需 skill 支持） |
-| `mijia_update_graph` | 更新规则（⚠️更新 nodes 需 skill） |
+| `mijia_create_graph` | 创建规则（⚠️需 Skill 支持） |
+| `mijia_update_graph` | 更新规则（⚠️更新 nodes 需 Skill） |
 | `mijia_delete_graph` | 删除规则 |
 | `mijia_toggle_graph` | 启用/禁用规则 |
 | `mijia_validate_graph` | 校验规则完整性 |
@@ -167,10 +167,10 @@ Skill 位于 `.agents/skills/mijia-automation/` 目录下：
 
 **⚠️ 关于创建/更新规则**：
 
-`mijia_create_graph` 和 `mijia_update_graph` 需要 `mijia-automation` skill 的支持。
+`mijia_create_graph` 和 `mijia_update_graph` 需要 `mijia-automation` Skill 的支持。
 
-- 如果已安装 skill，AI 助手会自动激活，无需手动操作
-- 如果 AI 助手提示需要安装 skill，请参考上面的 "Step 3" 进行安装
+- 如果已安装 Skill，AI 助手会自动激活，无需手动操作
+- 如果 AI 助手提示需要安装 Skill，请参考上面的 "Step 3" 进行安装
 
 **Skill 提供的内容**：
 - 完整的节点类型模板（deviceInput, deviceOutput, condition, timeRange, delay 等）
@@ -302,7 +302,7 @@ Agent: [思考中...] 我来帮你设置这个自动化。
 oh-my-sage/
 ├── .agents/
 │   └── skills/
-│       └── mijia-automation/ # 米家自动化技能（MCP创建规则必需）
+│       └── mijia-automation/ # 米家自动化 Skill（MCP创建规则必需）
 ├── src/
 │   ├── app/                 # Next.js Web 界面
 │   ├── components/          # React 组件
@@ -339,7 +339,7 @@ Oh My Sage 支持可扩展的 Agent Skills 系统。
 
 | 层级 | 内容 | Token 成本 | 触发时机 |
 |------|------|-----------|----------|
-| Catalog | name + description | ~50-100/skill | 系统初始化 |
+| Catalog | name + description | ~50-100/Skill | 系统初始化 |
 | Instructions | 完整 SKILL.md | <5000 tokens | 自动/手动激活 |
 | Resources | references/ 等 | 按需加载 | read_skill_file |
 

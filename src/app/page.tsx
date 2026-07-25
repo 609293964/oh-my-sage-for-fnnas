@@ -82,7 +82,7 @@ export default function HomePage() {
                 setSessions(result.sessions || []);
             }
         } catch (error) {
-            console.error('加载 session 列表失败:', error);
+            console.error('加载 Session 列表失败:', error);
         } finally {
             setSessionsLoading(false);
         }
@@ -119,7 +119,7 @@ export default function HomePage() {
                 setCurrentMessages(result.messages || []);
             }
         } catch (error) {
-            message.error('加载 session 消息失败');
+            message.error('加载 Session 消息失败');
         }
     };
 
@@ -136,7 +136,7 @@ export default function HomePage() {
                 message.success('Session 已删除');
             }
         } catch (error) {
-            message.error('删除 session 失败');
+            message.error('删除 Session 失败');
         }
     };
 

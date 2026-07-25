@@ -53,14 +53,14 @@ export class Agent {
     }
 
     /**
-     * 设置当前 session
+     * 设置当前 Session
      */
     setSession(sessionId: string): void {
         this.sessionId = sessionId;
     }
 
     /**
-     * 加载 session 历史到 messages
+     * 加载 Session 历史到 messages
      */
     async loadSession(sessionId: string): Promise<void> {
         this.sessionId = sessionId;
@@ -71,7 +71,7 @@ export class Agent {
      * 从 sessionStore 重新加载消息到 messages
      * 确保 this.messages 与 sessionStore 一致
      *
-     * 如果 session 中存在 compressed 类型的消息，取最后一条 compressed 作为起点，
+     * 如果 Session 中存在 compressed 类型的消息，取最后一条 compressed 作为起点，
      * 丢弃其之前的所有历史，以压缩摘要作为对话上下文的起点
      */
     private async reloadMessages(): Promise<void> {
@@ -184,7 +184,7 @@ export class Agent {
     }
 
     /**
-     * 获取当前 session 从 sessionStore 加载的原始消息（不含 compressed 截断）
+     * 获取当前 Session 从 sessionStore 加载的原始消息（不含 compressed 截断）
      * 用于压缩时获取完整历史
      */
     private async getAllSessionMessages() {
@@ -197,7 +197,7 @@ export class Agent {
      * 1. 找到最后一条 compressed 消息（如有），取其后的所有消息
      2. 保留最近 N 轮消息不动，压缩前面的部分
      3. 调用 LLM 生成摘要
-     4. 将摘要写入 session 作为新的 compressed 消息
+     4. 将摘要写入 Session 作为新的 compressed 消息
      5. 重新加载 messages
      */
     private async compressHistory(): Promise<void> {
@@ -265,7 +265,7 @@ export class Agent {
         const summary = summaryResult.text.trim();
         if (!summary) return;
 
-        // 将压缩摘要写入 session
+        // 将压缩摘要写入 Session
         await this.sessionStore.insertCompressedSummary(this.sessionId, summary);
 
         // 重新加载 messages（会自动截断 compressed 之前的历史）
@@ -273,7 +273,7 @@ export class Agent {
     }
 
     /**
-     * 保存用户消息到 session
+     * 保存用户消息到 Session
      */
     private async saveUserMessage(content: string): Promise<void> {
         if (!this.sessionId) return;
@@ -290,7 +290,7 @@ export class Agent {
     }
 
     /**
-     * 保存助手消息到 session
+     * 保存助手消息到 Session
      */
     private async saveAssistantMessage(
         content: string,
@@ -324,7 +324,7 @@ export class Agent {
             // 添加用户输入到消息历史
             if (userInput) {
                 this.messages.push({role: 'user', content: userInput});
-                // 保存用户消息到 session
+                // 保存用户消息到 Session
                 await this.saveUserMessage(userInput);
             }
 
