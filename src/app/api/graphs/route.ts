@@ -5,7 +5,7 @@
 
 import {NextRequest, NextResponse} from 'next/server';
 import {getGateway, isGatewayConnected} from '@/server/gateway/shared';
-import {deleteGraph} from '@/core';
+import {createGraph, deleteGraph, toggleGraph, updateGraph} from '@/core';
 
 export const runtime = 'nodejs';
 
@@ -59,6 +59,32 @@ export async function GET() {
     }
 }
 
+export async function POST(request: NextRequest) {
+    try {
+        if (!isGatewayConnected()) return NextResponse.json({success: false, error: '未连接到网关'}, {status: 400});
+        const {name, nodes, variables, enable = true} = await request.json();
+        if (typeof name !== 'string' || !name.trim() || !Array.isArray(nodes)) {
+            return NextResponse.json({success: false, error: 'name 和 nodes 参数无效'}, {status: 400});
+        }
+        const result = await createGraph(getGateway()!, {name, nodes, variables, enable});
+        return NextResponse.json(result, {status: result.success ? 201 : 400});
+    } catch (error) {
+        return NextResponse.json({success: false, error: `创建规则失败: ${error}`}, {status: 500});
+    }
+}
+
+export async function PUT(request: NextRequest) {
+    try {
+        if (!isGatewayConnected()) return NextResponse.json({success: false, error: '未连接到网关'}, {status: 400});
+        const {id, name, nodes, enable} = await request.json();
+        if (typeof id !== 'string' || !id) return NextResponse.json({success: false, error: '缺少规则 ID'}, {status: 400});
+        const result = await updateGraph(getGateway()!, id, {name, nodes, enable});
+        return NextResponse.json(result, {status: result.success ? 200 : 400});
+    } catch (error) {
+        return NextResponse.json({success: false, error: `更新规则失败: ${error}`}, {status: 500});
+    }
+}
+
 /**
  * PATCH 请求处理
  * 启用/禁用规则
@@ -90,40 +116,8 @@ export async function PATCH(request: NextRequest) {
             }, {status: 400});
         }
 
-        const gateway = getGateway()!;
-
-        // 先从 getGraphList 获取规则信息
-        const graphList = await gateway.callApi('getGraphList', {}, 10000);
-
-        const graphInfo = Array.isArray(graphList)
-            ? graphList.find((g: any) => g.id === id)
-            : null;
-
-        if (!graphInfo) {
-            return NextResponse.json({
-                success: false,
-                error: '规则不存在',
-            }, {status: 404});
-        }
-
-        // 构建完整的 changeGraphConfig 参数
-        // 保留原有的 userData（name, transform, lastUpdateTime）
-        const changeConfigParams = {
-            id,
-            enable,
-            userData: {
-                name: graphInfo.userData?.name || '未命名规则',
-                lastUpdateTime: Date.now(),
-                transform: graphInfo.userData?.transform || {x: 0, y: 0, scale: 1, rotate: 0},
-            },
-        };
-
-        await gateway.callApi('changeGraphConfig', changeConfigParams, 10000);
-
-        return NextResponse.json({
-            success: true,
-            message: enable ? '规则已启用' : '规则已禁用',
-        });
+        const result = await toggleGraph(getGateway()!, id, enable);
+        return NextResponse.json(result, {status: result.success ? 200 : 404});
     } catch (error) {
         console.error('修改规则状态错误:', error);
 

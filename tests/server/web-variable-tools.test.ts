@@ -10,6 +10,22 @@ test('Web Agent 公开完整变量生命周期工具', () => {
     }
 });
 
+test('Web Agent 公开独立 MIOT 能力预检工具', async () => {
+    const gateway = {
+        async callApi(method: string): Promise<unknown> {
+            if (method === 'getVarList') return {};
+            throw new Error(`非预期调用：${method}`);
+        },
+    } as unknown as GatewayClient;
+    const tools = createCoreTools(gateway) as any;
+
+    const result = await tools.validate_graph_capabilities.execute({
+        graph: {id: '1', nodes: [], cfg: {}},
+    });
+
+    assert.equal(result.valid, true);
+});
+
 test('网页端 create_graph 透传本规则变量定义', async () => {
     const calls: Array<{method: string; params: any}> = [];
     const variables: Record<string, any> = {};

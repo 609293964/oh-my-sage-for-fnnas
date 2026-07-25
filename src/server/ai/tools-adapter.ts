@@ -7,7 +7,7 @@ import {z} from 'zod';
 import {tool} from 'ai';
 import {jsonSchema, type Schema, zodSchema} from '@ai-sdk/ui-utils';
 import {GatewayClient} from '@/core';
-import {callGatewayApi, getDevices, getDevice, getGraphs, getGraph, createGraph, updateGraph, deleteGraph, toggleGraph, getVariables, setVariable, createVariable, deleteVariable, getVariableValue, getVariableConfig, validateGraph, layoutNodes} from '@/core';
+import {callGatewayApi, getDevices, getDevice, getGraphs, getGraph, createGraph, updateGraph, deleteGraph, toggleGraph, getVariables, setVariable, createVariable, deleteVariable, getVariableValue, getVariableConfig, validateGraph, validateGraphCapabilitiesWithGateway, layoutNodes} from '@/core';
 import {getSkillByName, formatSkillContent, readSkillFile, getSkillCatalog} from '../skills/loader';
 
 function patchArrayItems(schema: unknown): unknown {
@@ -285,6 +285,14 @@ export function createCoreTools(gateway: GatewayClient) {
                         : `校验通过（${warnList.length} 个警告）`,
                 };
             },
+        }),
+
+        validate_graph_capabilities: defineTool({
+            description: '根据真实 MIOT Spec 校验规则中的设备能力和变量引用',
+            parameters: z.object({
+                graph: z.object({id: z.string(), nodes: z.array(z.any()), cfg: z.any()}),
+            }),
+            execute: async ({graph}) => validateGraphCapabilitiesWithGateway(gateway, graph as any),
         }),
 
         activate_skill: defineTool({
