@@ -4,7 +4,7 @@
 
 import { GatewayClient } from '../gateway/client';
 import { randomInt } from 'node:crypto';
-import type { Graph, GraphSummary, CreateGraphInput, ValidationError } from '../types/graph';
+import type { Graph, GraphSummary, CreateGraphInput, UpdateGraphInput, ValidationError } from '../types/graph';
 import type { ToolResponse } from '../types';
 import { validateGraph, layoutNodes } from './base';
 import { validateGraphCapabilitiesWithGateway } from './capabilityValidation';
@@ -159,7 +159,7 @@ export async function createGraph(gateway: GatewayClient, input: CreateGraphInpu
     }
 }
 
-export async function updateGraph(gateway: GatewayClient, id: string, input: Partial<CreateGraphInput>): Promise<ToolResponse> {
+export async function updateGraph(gateway: GatewayClient, id: string, input: UpdateGraphInput): Promise<ToolResponse> {
     try {
         const existing = await gateway.callApi<Graph>('getGraph', { id }, 10000);
         const graphList = await gateway.callApi('getGraphList', {}, 10000);

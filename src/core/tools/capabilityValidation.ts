@@ -66,6 +66,7 @@ function validateValue(node: GraphNode, property: MiotPropertyCapability, operat
         }
         if (typeof v1 === 'number' && typeof v2 === 'number' && v1 > v2) errors.push(error(node, 'range_order', `${property.desc} 的 v1 不能大于 v2`));
     }
+    else if (!validScalar(v1, property.dtype)) errors.push(error(node, 'value_type', `${property.desc} 需要 ${property.dtype} 类型值`));
     return errors;
 }
 
@@ -208,16 +209,21 @@ export function validateGraphCapabilities(nodes: GraphNode[], devices: Map<strin
         const requiredAccess = node.type === 'deviceInput' || node.type === 'deviceInputSetVar' ? 'notify' : node.type === 'deviceGet' || node.type === 'deviceGetSetVar' ? 'read' : 'write';
         if (!property.access.includes(requiredAccess)) errors.push(error(node, 'access_denied', `${property.desc} 不支持 ${requiredAccess}`));
         const setVar = node.type === 'deviceInputSetVar' || node.type === 'deviceGetSetVar';
-        const dynamicOutput = node.type === 'deviceOutput' && typeof props.id === 'string' && typeof props.scope === 'string';
+        const hasDynamicReference = node.type === 'deviceOutput' && (props.id !== undefined || props.scope !== undefined || props.dtype !== undefined);
+        const dynamicOutput = hasDynamicReference && typeof props.id === 'string' && typeof props.scope === 'string' && props.dtype !== undefined;
         const variableValue = setVar || dynamicOutput;
         if (props.dtype !== undefined && !graphDtypeMatches(property.dtype, props.dtype, variableValue)) errors.push(error(node, 'dtype_mismatch', `${property.desc} 的 MIOT 类型为 ${property.dtype}，节点类型应兼容 ${variableValue ? 'number' : property.dtype}`));
         if (node.type === 'deviceOutput') {
+            if (hasDynamicReference && !dynamicOutput) {
+                errors.push(error(node, 'incomplete_variable_reference', `${property.desc} 的动态变量引用必须同时提供 id、scope 和 dtype`));
+                continue;
+            }
             if (dynamicOutput) {
                 if (property.range && (props.min !== property.range.min || props.max !== property.range.max || props.step !== property.range.step)) {
                     errors.push(error(node, 'range_mismatch', `${property.desc} 的动态变量范围应为 ${JSON.stringify(property.range)}`));
                 }
             } else {
-                errors.push(...validateValue(node, property, '=', props.value));
+                errors.push(...validateActionInputValue(node, property, props.value));
             }
         }
         else if (!setVar) errors.push(...validateValue(node, property, props.operator, props.v1, props.v2));

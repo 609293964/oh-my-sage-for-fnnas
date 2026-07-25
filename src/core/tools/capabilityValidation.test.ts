@@ -50,6 +50,17 @@ const volumeDevice = {
 const dynamicVolume = { id: 'volume', type: 'deviceOutput', cfg: { urn: 'urn:test:speaker' }, props: { did: 'speaker', siid: 2, piid: 1, id: 'volumeVar', scope: 'R1', dtype: 'number', min: 5, max: 100, step: 1 }, inputs: { trigger: null }, outputs: { output: [] } };
 assert.equal(validateGraphCapabilities([dynamicVolume], new Map([['speaker', volumeDevice]])).valid, true);
 assert.equal(validateGraphCapabilities([{ ...dynamicVolume, props: { ...dynamicVolume.props, max: 200 } }], new Map([['speaker', volumeDevice]])).valid, false);
+assert.equal(validateGraphCapabilities([{ ...dynamicVolume, props: { ...dynamicVolume.props, scope: undefined } }], new Map([['speaker', volumeDevice]])).valid, false);
+
+const boolDevice = { urn: 'urn:test:switch', properties: [{ siid: 2, piid: 1, desc: 'Power', dtype: 'bool', access: ['write'] }], events: [], actions: [] };
+const boolOutput = { id: 'power', type: 'deviceOutput', cfg: { urn: 'urn:test:switch' }, props: { did: 'switch', siid: 2, piid: 1, value: true }, inputs: { trigger: null }, outputs: { output: [] } };
+assert.equal(validateGraphCapabilities([boolOutput], new Map([['switch', boolDevice]])).valid, true);
+assert.equal(validateGraphCapabilities([{ ...boolOutput, props: { ...boolOutput.props, value: 'true' } }], new Map([['switch', boolDevice]])).valid, false);
+
+const enumDevice = { urn: 'urn:test:fan', properties: [{ siid: 2, piid: 2, desc: 'Mode', dtype: 'uint8', access: ['write'], list: [{ value: 1, description: 'Auto' }, { value: 2, description: 'Silent' }] }], events: [], actions: [] };
+const enumOutput = { id: 'mode', type: 'deviceOutput', cfg: { urn: 'urn:test:fan' }, props: { did: 'fan', siid: 2, piid: 2, value: 1 }, inputs: { trigger: null }, outputs: { output: [] } };
+assert.equal(validateGraphCapabilities([enumOutput], new Map([['fan', enumDevice]])).valid, true);
+assert.equal(validateGraphCapabilities([{ ...enumOutput, props: { ...enumOutput.props, value: 9 } }], new Map([['fan', enumDevice]])).valid, false);
 
 const lock = {
   urn: 'urn:test:lock',

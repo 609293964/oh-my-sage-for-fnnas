@@ -58,6 +58,8 @@ export interface CreateGraphInput {
     }>;
 }
 
+export type UpdateGraphInput = Partial<Pick<CreateGraphInput, 'name' | 'nodes' | 'enable'>>;
+
 /** 校验错误 */
 export interface ValidationError {
     nodeId: string;
