@@ -205,7 +205,7 @@ class SessionStore {
 
 #### GET /api/sessions
 
-获取 session 列表
+获取 Session 列表
 
 ```typescript
 // 响应
@@ -217,7 +217,7 @@ class SessionStore {
 
 #### POST /api/sessions
 
-创建新 session
+创建新 Session
 
 ```typescript
 // 请求
@@ -234,7 +234,7 @@ class SessionStore {
 
 #### GET /api/sessions/[id]
 
-获取 session 详情和消息历史
+获取 Session 详情和消息历史
 
 ```typescript
 // 响应
@@ -247,11 +247,11 @@ class SessionStore {
 
 #### DELETE /api/sessions/[id]
 
-删除 session
+删除 Session
 
 #### PATCH /api/sessions/[id]
 
-更新 session（如修改标题）
+更新 Session（如修改标题）
 
 ### Agent 改造
 
@@ -571,7 +571,7 @@ const handleDeleteGraph = async (id: string) => {
 |------|------|
 | `src/app/api/devices/route.ts` | 删除 POST 方法 |
 | `src/app/api/chat/route.ts` | 支持 sessionId |
-| `src/server/agent/agent.ts` | 集成 session store |
+| `src/server/agent/agent.ts` | 集成 Session store |
 | `src/app/page.tsx` | UI 布局改造 |
 | `src/components/LoginPage.tsx` | 调用 /api/auth |
 | `src/components/Chat.tsx` | 支持初始消息 |
@@ -691,9 +691,9 @@ Chat 组件: setMessages(转换后的消息)
 
 1. 登录流程只认证，不获取设备
 2. 首页显示设备加载状态
-3. 创建新 session 后可以开始对话
-4. 历史 session 消息可以正确恢复
+3. 创建新 Session 后可以开始对话
+4. 历史 Session 消息可以正确恢复
 5. Session 列表显示正确的标题和摘要
 6. 规则列表正确显示
 7. 规则启用/禁用状态同步
-8. 删除 session 后清理文件
+8. 删除 Session 后清理文件

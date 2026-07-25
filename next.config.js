@@ -26,10 +26,6 @@ const nextConfig = {
     return config;
   },
   
-  // 环境变量
-  env: {
-    GATEWAY_URL: process.env.GATEWAY_URL || 'http://192.168.0.5',
-  },
 };
 
 module.exports = nextConfig;

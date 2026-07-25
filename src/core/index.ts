@@ -27,5 +27,5 @@ export type {
     MiotValueListItem,
     MiotValueRange,
 } from './types/device';
-export type { Graph, GraphNode, GraphConfig, GraphSummary, CreateGraphInput, ValidationError } from './types/graph';
+export type { Graph, GraphNode, GraphConfig, GraphSummary, CreateGraphInput, UpdateGraphInput, ValidationError } from './types/graph';
 export type { ToolResult, ToolError, ToolResponse, Variable } from './types';

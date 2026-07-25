@@ -5,6 +5,8 @@
 import { GatewayClient } from '../gateway/client';
 import type { Variable } from '../types';
 import type { ToolResponse } from '../types';
+import type { Graph } from '../types/graph';
+import { graphReferencesVariable } from './capabilityValidation';
 
 export async function getVariables(gateway: GatewayClient, scope: string = 'global'): Promise<ToolResponse<Variable[]>> {
     try {
@@ -50,6 +52,13 @@ export async function createVariable(
 
 export async function deleteVariable(gateway: GatewayClient, id: string, scope: string = 'global'): Promise<ToolResponse> {
     try {
+        const graphList = await gateway.callApi<Array<{ id: string }>>('getGraphList', {}, 10000);
+        const references: string[] = [];
+        for (const summary of Array.isArray(graphList) ? graphList : []) {
+            const graph = await gateway.callApi<Graph>('getGraph', { id: summary.id }, 10000);
+            if (graphReferencesVariable(graph.nodes || [], id, scope)) references.push(summary.id);
+        }
+        if (references.length > 0) return { success: false, error: `变量 ${scope}/${id} 仍被规则引用: ${references.join(', ')}` };
         await gateway.callApi('deleteVar', { scope, id }, 10000);
         return { success: true, message: `变量 ${id} 删除成功` };
     } catch (error) {

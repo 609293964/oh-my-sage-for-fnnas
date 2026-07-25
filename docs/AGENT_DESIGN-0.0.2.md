@@ -55,7 +55,7 @@
 │  ai/model.ts          - 模型配置                                │
 │  ai/prompts.ts        - 系统提示词                              │
 │  agent/agent.ts       - Agent 循环 + 流式输出                   │
-│  session/store.ts      - JSON 文件会话存储                      │
+│  session/store.ts      - JSON 文件 Session 存储                 │
 │  skills/loader.ts      - Skill 动态加载                          │
 │  validator/            - 规则校验                               │
 └─────────────────────────────────────────────────────────────────┘
@@ -383,7 +383,7 @@ server.registerTool("mijia_get_devices", {
 ### 4.1 设计原则
 
 - **只暴露原子工具**：外部 Agent 自己决定调用顺序和组合
-- **不提供 chat 接口**：避免 agent 套 agent
+- **不提供 chat 接口**：避免 Agent 套 Agent
 - **单例连接**：整个 MCP 进程共享一个 Gateway 连接
 - **STDIO 日志规范**：使用 `console.error()` 记录日志，禁止使用 `console.log()`
 

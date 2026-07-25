@@ -50,7 +50,15 @@ export interface CreateGraphInput {
     name: string;
     nodes: GraphNode[];
     enable?: boolean;
+    variables?: Array<{
+        id: string;
+        type: 'number' | 'string';
+        value: number | string;
+        name?: string;
+    }>;
 }
+
+export type UpdateGraphInput = Partial<Pick<CreateGraphInput, 'name' | 'nodes' | 'enable'>>;
 
 /** 校验错误 */
 export interface ValidationError {
