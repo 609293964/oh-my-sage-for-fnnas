@@ -1,5 +1,5 @@
 /**
- * MCP Server - 规则管理工具
+ * MCP 服务 - 规则管理工具
  */
 
 import { z } from "zod";
@@ -21,6 +21,11 @@ import {
   handleError,
   formatGraphListMarkdown,
 } from "../utils.js";
+
+const GraphVariableSchema = z.discriminatedUnion("type", [
+  z.object({ id: z.string().regex(/^[a-zA-Z0-9]+$/, "id 必须是纯字母数字"), type: z.literal("number"), value: z.number(), name: z.string().trim().min(1).optional() }),
+  z.object({ id: z.string().regex(/^[a-zA-Z0-9]+$/, "id 必须是纯字母数字"), type: z.literal("string"), value: z.string(), name: z.string().trim().min(1).optional() }),
+]);
 
 export function registerGraphTools(
   server: McpServer,
@@ -54,7 +59,7 @@ export function registerGraphTools(
       title: "获取规则列表",
       description: `获取所有自动化规则的列表。
 
-Returns:
+返回：
   - graphs: 规则列表
   - count: 规则数量
   - 包含 id, name, enable(启用状态)`,
@@ -110,10 +115,10 @@ Returns:
       title: "获取规则详情",
       description: `获取指定自动化规则的详细信息。
 
-Args:
+参数：
   - id (string): 规则ID，从 mijia_get_graphs 获取
 
-Returns:
+返回：
   - graph: 完整的规则对象
   - 包含 nodes(节点列表), cfg(配置)`,
       inputSchema: z.object({
@@ -193,20 +198,22 @@ Returns:
 
 系统会自动进行节点布局和连接完整性校验。
 
-Args:
+参数：
   - name (string): 规则名称
   - nodes (array): 节点列表，包含触发器、条件、动作等（必须符合 mijia-automation skill 中的模板规范）
+  - variables (array, optional): 同时创建的本规则变量；节点中使用 scope="rule"，系统会替换为真实作用域
   - enable (boolean, optional): 是否立即启用，默认 true
 
-Returns:
+返回：
   - graphId: 创建的规则ID
 
-Error Handling:
+错误处理：
   - "规则校验失败" - 节点连接不完整或不符合规范
   - "网关未连接" - 请先调用 mijia_auth`,
       inputSchema: z.object({
         name: z.string().min(1).describe("规则名称"),
         nodes: z.array(z.any()).describe("节点列表"),
+        variables: z.array(GraphVariableSchema).optional().describe("本规则变量定义；节点引用时 scope 使用 rule"),
         enable: z.boolean().default(true).describe("是否启用，默认 true"),
       }),
       annotations: {
@@ -216,10 +223,10 @@ Error Handling:
         openWorldHint: true,
       },
     },
-    async ({ name, nodes, enable }) => {
+    async ({ name, nodes, variables, enable }) => {
       try {
         gatewayManager.ensureConnected();
-        const result = await createGraph(gatewayManager.gateway!, { name, nodes, enable });
+        const result = await createGraph(gatewayManager.gateway!, { name, nodes, variables, enable });
 
         if (!result.success) {
           return {
@@ -254,13 +261,13 @@ Error Handling:
 
 如果只需要更新规则名称或启用状态，无需加载 skill。
 
-Args:
+参数：
   - id (string): 规则ID
   - name (string, optional): 新规则名称
   - nodes (array, optional): 新节点列表（必须符合 mijia-automation skill 中的模板规范）
   - enable (boolean, optional): 是否启用
 
-Returns:
+返回：
   - success: 是否成功
   
 注意：更新 nodes 时会自动进行节点布局（保留原有位置信息）和连接完整性校验。`,
@@ -307,11 +314,11 @@ Returns:
     "mijia_delete_graph",
     {
       title: "删除自动化规则",
-      description: `删除指定的自动化规则。
+      description: `删除指定的自动化规则，并清理对应的本规则变量作用域。
 
 此操作不可恢复，请确认后再执行。
 
-Args:
+参数：
   - id (string): 规则ID`,
       inputSchema: z.object({
         id: z.string().describe("规则ID"),
@@ -355,7 +362,7 @@ Args:
       title: "切换规则状态",
       description: `启用或禁用指定的自动化规则。
 
-Args:
+参数：
   - id (string): 规则ID
   - enable (boolean): 是否启用`,
       inputSchema: z.object({
@@ -413,13 +420,13 @@ Args:
 - timeRange 可连接 condition.condition，或经 logicOr/logicAnd/logicNot 最终连接 condition.condition
 - 所有节点的 props、inputs、outputs 必须存在
 
-Args:
+参数：
   - graph (object): 完整规则对象
     - id (string): 规则ID
     - nodes (array): 节点列表（必须符合 mijia-automation skill 规范）
     - cfg (object): 规则配置
 
-Returns:
+返回：
   - errors: 错误列表
   - warnings: 警告列表
   - valid: 是否有效（无错误）`,

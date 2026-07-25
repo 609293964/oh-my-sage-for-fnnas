@@ -23,8 +23,10 @@ const playText = { id: 'tts', type: 'deviceOutput', cfg: { urn: 'urn:test:speake
 assert.equal(validateGraphCapabilities([playText], new Map([['speaker', speaker]])).valid, true);
 assert.equal(validateGraphCapabilities([{ ...playText, props: { ...playText.props, aiid: 99 } }], new Map([['speaker', speaker]])).valid, false);
 assert.equal(validateGraphCapabilities([{ ...playText, props: { ...playText.props, ins: [{ piid: 1, value: 123 }] } }], new Map([['speaker', speaker]])).valid, false);
+assert.equal(validateGraphCapabilities([{ ...playText, props: { ...playText.props, ins: [{ piid: 1, id: 'messageVar', scope: 'R1', dtype: 'string' }] } }], new Map([['speaker', speaker]])).valid, true);
+assert.equal(validateGraphCapabilities([{ ...playText, props: { ...playText.props, ins: [{ piid: 1, id: 'messageVar', scope: 'R1', dtype: 'number' }] } }], new Map([['speaker', speaker]])).valid, false);
 
-// Action input with enum/range params: single scalar values are valid (must NOT require operator=include)
+// 动作输入包含枚举或范围参数时，单个标量值有效（不得要求 operator=include）
 const lamp = {
   urn: 'urn:test:lamp',
   properties: [],
@@ -48,4 +50,16 @@ const volumeDevice = {
 const dynamicVolume = { id: 'volume', type: 'deviceOutput', cfg: { urn: 'urn:test:speaker' }, props: { did: 'speaker', siid: 2, piid: 1, id: 'volumeVar', scope: 'R1', dtype: 'number', min: 5, max: 100, step: 1 }, inputs: { trigger: null }, outputs: { output: [] } };
 assert.equal(validateGraphCapabilities([dynamicVolume], new Map([['speaker', volumeDevice]])).valid, true);
 assert.equal(validateGraphCapabilities([{ ...dynamicVolume, props: { ...dynamicVolume.props, max: 200 } }], new Map([['speaker', volumeDevice]])).valid, false);
-console.log('capability validation tests passed');
+
+const lock = {
+  urn: 'urn:test:lock',
+  properties: [],
+  events: [{ siid: 4, eiid: 1, desc: 'Unlocked', arguments: [{ siid: 4, piid: 1, desc: 'Method', dtype: 'uint8', access: [] }] }],
+  actions: [],
+};
+const eventSetVar = { id: 'eventVar', type: 'deviceInputSetVar', cfg: { urn: 'urn:test:lock' }, props: { did: 'lock', siid: 4, eiid: 1, arguments: [{ piid: 1, dtype: 'number', scope: 'R1', id: 'method' }] }, inputs: {}, outputs: { output: [] } };
+assert.equal(validateGraphCapabilities([eventSetVar], new Map([['lock', lock]])).valid, true);
+assert.equal(validateGraphCapabilities([{ ...eventSetVar, props: { ...eventSetVar.props, arguments: [{ piid: 2, dtype: 'number', scope: 'R1', id: 'method' }] } }], new Map([['lock', lock]])).valid, false);
+assert.equal(validateGraphCapabilities([{ ...eventSetVar, props: { ...eventSetVar.props, arguments: [{ piid: 1, dtype: 'string', scope: 'R1', id: 'method' }] } }], new Map([['lock', lock]])).valid, false);
+assert.equal(validateGraphCapabilities([{ ...eventSetVar, props: { ...eventSetVar.props, arguments: [{ piid: 1, dtype: 'number', scope: 'R1', id: 'method' }, { piid: 1, dtype: 'number', scope: 'R1', id: 'method2' }] } }], new Map([['lock', lock]])).valid, false);
+console.log('能力校验测试通过');

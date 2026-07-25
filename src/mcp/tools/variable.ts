@@ -1,5 +1,5 @@
 /**
- * MCP Server - 变量管理工具
+ * MCP 服务 - 变量管理工具
  */
 
 import { z } from "zod";
@@ -13,13 +13,15 @@ import {
   formatVariableListMarkdown,
 } from "../utils.js";
 
-export const CreateVariableInputSchema = z.object({
+export const CreateVariableToolInputSchema = z.object({
   id: z.string().regex(/^[a-zA-Z0-9]+$/, "id 必须是纯字母数字，不能含下划线/连字符").describe("变量ID，纯字母数字"),
   type: z.enum(["number", "string"]).describe("变量类型"),
   value: z.union([z.string(), z.number()]).describe("初始值"),
   name: z.string().trim().min(1, "name 不能为空").optional().describe("显示名称，可选，默认与 id 相同"),
   scope: z.string().default("global").describe("变量作用域，默认 global"),
-}).refine(
+});
+
+export const CreateVariableInputSchema = CreateVariableToolInputSchema.refine(
   ({ type, value }) => typeof value === type,
   { message: "value 必须与 type 匹配", path: ["value"] }
 );
@@ -37,7 +39,7 @@ export function registerVariableTools(
 
 变量可用于规则间的数据传递和状态存储。
 
-Args:
+参数：
   - scope (string, optional): 变量作用域，默认 "global"`,
       inputSchema: z.object({
         scope: z.string().default("global").describe("变量作用域，默认 global"),
@@ -92,7 +94,7 @@ Args:
       title: "设置变量值",
       description: `设置自动化变量的值。
 
-Args:
+参数：
   - id (string): 变量ID
   - value (string | number): 变量值
   - scope (string, optional): 变量作用域，默认 "global"`,
@@ -142,13 +144,13 @@ Args:
 
 ⚠️ 网关要求 id 必须是纯字母数字（不能含下划线、连字符或中文），否则返回 "Invalid id format"。
 
-Args:
+参数：
   - id (string): 变量ID，纯字母数字
   - type (string): "number" 或 "string"
   - value (string | number): 初始值
   - name (string, optional): 显示名称（可含中文），默认与 id 相同
   - scope (string, optional): 变量作用域，默认 "global"`,
-      inputSchema: CreateVariableInputSchema,
+      inputSchema: CreateVariableToolInputSchema,
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
@@ -158,6 +160,13 @@ Args:
     },
     async ({ id, type, value, name, scope = "global" }) => {
       try {
+        const parsed = CreateVariableInputSchema.safeParse({ id, type, value, name, scope });
+        if (!parsed.success) {
+          return {
+            content: [{ type: "text", text: parsed.error.issues.map((issue) => issue.message).join("；") }],
+            isError: true,
+          };
+        }
         gatewayManager.ensureConnected();
         const result = await createVariable(gatewayManager.gateway!, id, type, value, name, scope);
 
@@ -186,9 +195,9 @@ Args:
     "mijia_delete_variable",
     {
       title: "删除变量",
-      description: `删除一个自动化变量。
+      description: `删除一个自动化变量。删除前会扫描全部规则；仍被引用或无法完成引用检查时会拒绝删除。
 
-Args:
+参数：
   - id (string): 变量ID
   - scope (string, optional): 变量作用域，默认 "global"`,
       inputSchema: z.object({
@@ -234,7 +243,7 @@ Args:
       title: "获取变量当前值",
       description: `获取单个变量的当前值。
 
-Args:
+参数：
   - id (string): 变量ID
   - scope (string, optional): 变量作用域，默认 "global"`,
       inputSchema: z.object({
@@ -280,7 +289,7 @@ Args:
       title: "获取变量配置",
       description: `获取单个变量的配置（类型、显示名称等）。
 
-Args:
+参数：
   - id (string): 变量ID
   - scope (string, optional): 变量作用域，默认 "global"`,
       inputSchema: z.object({

@@ -13,6 +13,7 @@ test('变量生命周期 API 使用网关真实参数和响应结构', async () 
             };
             if (method === 'getVarValue') return { value: 7 };
             if (method === 'getVarConfig') return { type: 'number', userData: { name: 'Probe' } };
+            if (method === 'getGraphList') return [];
             return undefined;
         },
     } as unknown as GatewayClient;
@@ -36,8 +37,33 @@ test('变量生命周期 API 使用网关真实参数和响应结构', async () 
         { method: 'getVarList', params: { scope: 'global' }, timeout: 10000 },
         { method: 'getVarValue', params: { scope: 'global', id: 'probe1' }, timeout: 10000 },
         { method: 'getVarConfig', params: { scope: 'global', id: 'probe1' }, timeout: 10000 },
+        { method: 'getGraphList', params: {}, timeout: 10000 },
         { method: 'deleteVar', params: { scope: 'global', id: 'probe1' }, timeout: 10000 },
     ]);
+});
+
+test('删除仍被规则引用的变量时拒绝调用 deleteVar', async () => {
+    const calls: string[] = [];
+    const gateway = {
+        async callApi(method: string): Promise<unknown> {
+            calls.push(method);
+            if (method === 'getGraphList') return [{ id: 'graph1' }];
+            if (method === 'getGraph') return {
+                id: 'graph1', cfg: {}, nodes: [{
+                    id: 'calc', type: 'varSetNumber', cfg: {},
+                    props: { id: 'shared', scope: 'global', elements: [{ type: 'const', value: '1' }] },
+                    inputs: { input: null }, outputs: { output: [] },
+                }],
+            };
+            throw new Error(`意外的方法 ${method}`);
+        },
+    } as unknown as GatewayClient;
+
+    const result = await deleteVariable(gateway, 'shared', 'global');
+
+    assert.equal(result.success, false);
+    assert.match('error' in result ? result.error : '', /graph1/);
+    assert.equal(calls.includes('deleteVar'), false);
 });
 
 test('空白显示名称在 Core 层回退到变量 ID', async () => {
@@ -57,11 +83,11 @@ test('空白显示名称在 Core 层回退到变量 ID', async () => {
 test('网关异常转为失败响应', async () => {
     const gateway = {
         async callApi(): Promise<never> {
-            throw new Error('gateway failed');
+            throw new Error('网关失败');
         },
     } as unknown as GatewayClient;
 
     const failure = await createVariable(gateway, 'probe3', 'number', 0);
     assert.equal(failure.success, false);
-    assert.match('error' in failure ? failure.error : '', /gateway failed/);
+    assert.match('error' in failure ? failure.error : '', /网关失败/);
 });

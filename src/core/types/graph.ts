@@ -50,6 +50,12 @@ export interface CreateGraphInput {
     name: string;
     nodes: GraphNode[];
     enable?: boolean;
+    variables?: Array<{
+        id: string;
+        type: 'number' | 'string';
+        value: number | string;
+        name?: string;
+    }>;
 }
 
 /** 校验错误 */

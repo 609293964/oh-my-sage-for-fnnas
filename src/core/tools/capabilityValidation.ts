@@ -1,6 +1,7 @@
 import { GatewayClient } from '../gateway/client';
 import type { DeviceListResponse, MiotActionCapability, MiotEventCapability, MiotPropertyCapability } from '../types/device';
 import type { Graph, GraphNode, ValidationError } from '../types/graph';
+import type { Variable } from '../types';
 import { normalizeMiotSpec } from './device';
 
 export interface DeviceCapabilities {
@@ -16,6 +17,13 @@ export interface CapabilityValidationReport {
     warnings: ValidationError[];
     inspectedDids: string[];
     inspectedUrns: string[];
+}
+
+interface VariableReference {
+    node: GraphNode;
+    id: string;
+    scope: string;
+    expectedType?: 'number' | 'string';
 }
 
 function error(node: GraphNode, type: string, message: string): ValidationError {
@@ -87,12 +95,74 @@ function validateAction(node: GraphNode, device: DeviceCapabilities): Validation
         const entry = input as Record<string, unknown>;
         const property = typeof entry.piid === 'number' ? action.in.find((item) => item.piid === entry.piid) : undefined;
         if (!property) { errors.push(error(node, 'unknown_action_input', `${action.desc} 不支持输入 piid=${String(entry.piid)}`)); continue; }
+        if (typeof entry.id === 'string' && typeof entry.scope === 'string') {
+            if (!graphDtypeMatches(property.dtype, entry.dtype, true)) errors.push(error(node, 'action_input_type', `${property.desc} 的 MIOT 类型为 ${property.dtype}，变量类型不兼容`));
+            continue;
+        }
         errors.push(...validateActionInputValue(node, property, entry.value));
     }
     for (const property of action.in) {
         if (!inputs.some((input) => input && typeof input === 'object' && (input as Record<string, unknown>).piid === property.piid)) {
             errors.push(error(node, 'missing_action_input', `${action.desc} 缺少输入 ${property.desc}`));
         }
+    }
+    return errors;
+}
+
+function variableReferences(nodes: GraphNode[]): VariableReference[] {
+    const references: VariableReference[] = [];
+    const add = (node: GraphNode, value: unknown, expectedType?: 'number' | 'string'): void => {
+        if (!value || typeof value !== 'object') return;
+        const ref = value as Record<string, unknown>;
+        if (typeof ref.id === 'string' && typeof ref.scope === 'string') references.push({ node, id: ref.id, scope: ref.scope, expectedType });
+    };
+
+    for (const node of nodes) {
+        const declaredType = node.props.varType === 'string' || node.props.dtype === 'string' ? 'string' : 'number';
+        const resultType = node.type === 'varSetString' ? 'string' : ['varSetNumber', 'deviceInputSetVar', 'deviceGetSetVar', 'varChange', 'varGet'].includes(node.type) ? declaredType : undefined;
+        if (resultType) add(node, node.props, resultType);
+        if (node.type === 'deviceOutput' && typeof node.props.aiid !== 'number') {
+            const dtype = node.props.dtype;
+            add(node, node.props, dtype === 'string' ? 'string' : dtype === 'number' ? 'number' : undefined);
+        }
+        if (node.type === 'deviceOutput' && Array.isArray(node.props.ins)) for (const input of node.props.ins) {
+            const dtype = input && typeof input === 'object' ? (input as Record<string, unknown>).dtype : undefined;
+            add(node, input, dtype === 'string' ? 'string' : dtype === 'number' ? 'number' : undefined);
+        }
+        if (node.type === 'deviceInputSetVar' && Array.isArray(node.props.arguments)) for (const argument of node.props.arguments) {
+            const dtype = argument && typeof argument === 'object' ? (argument as Record<string, unknown>).dtype : undefined;
+            add(node, argument, dtype === 'string' ? 'string' : 'number');
+        }
+        if (Array.isArray(node.props.elements)) for (const element of node.props.elements) {
+            if (element && typeof element === 'object' && (element as Record<string, unknown>).type === 'var') add(node, element, node.type === 'varSetNumber' ? 'number' : undefined);
+        }
+    }
+    return references;
+}
+
+export function graphReferencesVariable(nodes: GraphNode[], id: string, scope: string): boolean {
+    return variableReferences(nodes).some((reference) => reference.id === id && reference.scope === scope);
+}
+
+export async function validateGraphVariablesWithGateway(gateway: GatewayClient, nodes: GraphNode[]): Promise<ValidationError[]> {
+    const errors: ValidationError[] = [];
+    const variablesByScope = new Map<string, Map<string, Variable>>();
+    for (const reference of variableReferences(nodes)) {
+        if (!variablesByScope.has(reference.scope)) {
+            try {
+                const response = await gateway.callApi<Variable[] | Record<string, Variable>>('getVarList', { scope: reference.scope }, 10000);
+                const entries = Array.isArray(response)
+                    ? response.flatMap((variable) => typeof variable.id === 'string' ? [[variable.id, variable] as const] : [])
+                    : Object.entries(response || {});
+                variablesByScope.set(reference.scope, new Map(entries));
+            } catch (cause) {
+                errors.push(error(reference.node, 'variable_scope_unavailable', `无法读取变量作用域 ${reference.scope}: ${String(cause)}`));
+                variablesByScope.set(reference.scope, new Map());
+            }
+        }
+        const variable = variablesByScope.get(reference.scope)!.get(reference.id);
+        if (!variable) errors.push(error(reference.node, 'unknown_variable', `变量 ${reference.scope}/${reference.id} 不存在`));
+        else if (reference.expectedType && variable.type !== reference.expectedType) errors.push(error(reference.node, 'variable_type_mismatch', `变量 ${reference.scope}/${reference.id} 类型为 ${String(variable.type)}，需要 ${reference.expectedType}`));
     }
     return errors;
 }
@@ -109,9 +179,23 @@ export function validateGraphCapabilities(nodes: GraphNode[], devices: Map<strin
         if (node.cfg.urn !== device.urn) { errors.push(error(node, 'urn_mismatch', `节点 URN 与设备 ${did} 的 URN 不一致`)); continue; }
         const siid = props.siid;
         if (typeof siid !== 'number') { errors.push(error(node, 'missing_siid', '缺少 siid')); continue; }
-        if (node.type === 'deviceInput' && typeof props.eiid === 'number') {
+        if ((node.type === 'deviceInput' || node.type === 'deviceInputSetVar') && typeof props.eiid === 'number') {
             const event = device.events.find((item) => item.siid === siid && item.eiid === props.eiid);
-            if (!event) errors.push(error(node, 'unknown_event', `找不到事件 siid=${siid}, eiid=${String(props.eiid)}`));
+            if (!event) { errors.push(error(node, 'unknown_event', `找不到事件 siid=${siid}, eiid=${String(props.eiid)}`)); continue; }
+            if (node.type === 'deviceInputSetVar') {
+                if (!Array.isArray(props.arguments)) { errors.push(error(node, 'missing_event_arguments', `${event.desc} 缺少事件参数赋值`)); continue; }
+                const seenPiids = new Set<number>();
+                for (const argument of props.arguments) {
+                    if (!argument || typeof argument !== 'object') { errors.push(error(node, 'invalid_event_argument', `${event.desc} 的事件参数格式错误`)); continue; }
+                    const entry = argument as Record<string, unknown>;
+                    const property = typeof entry.piid === 'number' ? event.arguments.find((item) => item.piid === entry.piid) : undefined;
+                    if (!property) { errors.push(error(node, 'unknown_event_argument', `${event.desc} 不支持参数 piid=${String(entry.piid)}`)); continue; }
+                    if (seenPiids.has(property.piid)) { errors.push(error(node, 'duplicate_event_argument', `${event.desc} 的参数 piid=${property.piid} 重复赋值`)); continue; }
+                    seenPiids.add(property.piid);
+                    if (typeof entry.id !== 'string' || typeof entry.scope !== 'string') errors.push(error(node, 'missing_event_argument_variable', `${property.desc} 缺少变量 id 或 scope`));
+                    if (!graphDtypeMatches(property.dtype, entry.dtype, true)) errors.push(error(node, 'event_argument_type', `${property.desc} 的 MIOT 类型为 ${property.dtype}，变量类型不兼容`));
+                }
+            }
             continue;
         }
         if (node.type === 'deviceOutput' && typeof props.aiid === 'number') {
@@ -142,8 +226,10 @@ export function validateGraphCapabilities(nodes: GraphNode[], devices: Map<strin
 }
 
 export async function validateGraphCapabilitiesWithGateway(gateway: GatewayClient, graph: Graph): Promise<CapabilityValidationReport> {
-    const response = await gateway.callApi<DeviceListResponse>('getDevList', {}, 10000);
     const dids = [...new Set(graph.nodes.map((node) => node.props.did).filter((did): did is string => typeof did === 'string'))];
+    const response = dids.length > 0
+        ? await gateway.callApi<DeviceListResponse>('getDevList', {}, 10000)
+        : { devList: {} };
     const specs = new Map<string, DeviceCapabilities>();
     const errors: ValidationError[] = [];
     for (const did of dids) {
@@ -166,6 +252,7 @@ export async function validateGraphCapabilitiesWithGateway(gateway: GatewayClien
         if (device?.urn && specs.has(device.urn)) devices.set(did, specs.get(device.urn)!);
     }
     const report = validateGraphCapabilities(graph.nodes, devices);
+    report.errors.push(...await validateGraphVariablesWithGateway(gateway, graph.nodes));
     report.errors.unshift(...errors);
     report.valid = report.errors.length === 0;
     return report;

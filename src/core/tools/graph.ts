@@ -3,9 +3,42 @@
  */
 
 import { GatewayClient } from '../gateway/client';
+import { randomInt } from 'node:crypto';
 import type { Graph, GraphSummary, CreateGraphInput, ValidationError } from '../types/graph';
 import type { ToolResponse } from '../types';
 import { validateGraph, layoutNodes } from './base';
+import { validateGraphCapabilitiesWithGateway } from './capabilityValidation';
+
+function nextGraphId(): string {
+    return String(randomInt(1_000_000_000_000, 10_000_000_000_000));
+}
+
+function replaceRuleScope(value: unknown, scope: string): unknown {
+    if (Array.isArray(value)) return value.map((item) => replaceRuleScope(item, scope));
+    if (!value || typeof value !== 'object') return value;
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, key === 'scope' && item === 'rule' ? scope : replaceRuleScope(item, scope)]));
+}
+
+function validateVariableDefinitions(variables: NonNullable<CreateGraphInput['variables']>): string | undefined {
+    const ids = new Set<string>();
+    for (const variable of variables) {
+        if (!/^[a-zA-Z0-9]+$/.test(variable.id)) return `变量 ID ${variable.id} 必须是纯字母数字`;
+        if (ids.has(variable.id)) return `变量 ID ${variable.id} 重复`;
+        if (typeof variable.value !== variable.type) return `变量 ${variable.id} 的初始值类型必须是 ${variable.type}`;
+        if (variable.name !== undefined && !variable.name.trim()) return `变量 ${variable.id} 的显示名称不能为空`;
+        ids.add(variable.id);
+    }
+    return undefined;
+}
+
+async function deleteGraphConfirmed(gateway: GatewayClient, id: string): Promise<void> {
+    try {
+        await gateway.callApi('deleteGraph', { id }, 10000);
+    } catch (deleteError) {
+        const graphList = await gateway.callApi<Array<{ id: string }>>('getGraphList', {}, 10000);
+        if (!Array.isArray(graphList) || graphList.some((graph) => graph.id === id)) throw deleteError;
+    }
+}
 
 export async function getGraphs(gateway: GatewayClient): Promise<ToolResponse<GraphSummary[]>> {
     try {
@@ -36,8 +69,20 @@ export async function getGraph(gateway: GatewayClient, id: string): Promise<Tool
 }
 
 export async function createGraph(gateway: GatewayClient, input: CreateGraphInput): Promise<ToolResponse<{ graphId: string }>> {
+    let graphId = nextGraphId();
+    let variableScope = `R${graphId}`;
+    const variables = input.variables || [];
+    const createdVariables: string[] = [];
+    let shellCreated = false;
     try {
-        const graphId = `graph_${Date.now()}`;
+        const existingGraphs = await gateway.callApi<Array<{ id: string }>>('getGraphList', {}, 10000);
+        const scopeResult = await gateway.callApi<{ scopes?: string[] } | string[]>('getVarScopeList', {}, 10000);
+        const existingIds = new Set((Array.isArray(existingGraphs) ? existingGraphs : []).map((graph) => graph.id));
+        const existingScopes = new Set(Array.isArray(scopeResult) ? scopeResult : scopeResult?.scopes || []);
+        while (existingIds.has(graphId) || existingScopes.has(`R${graphId}`)) graphId = nextGraphId();
+        variableScope = `R${graphId}`;
+        const definitionError = validateVariableDefinitions(variables);
+        if (definitionError) return { success: false, error: definitionError };
 
         const processedNodes = input.nodes.map((node) => ({
             ...node,
@@ -46,7 +91,7 @@ export async function createGraph(gateway: GatewayClient, input: CreateGraphInpu
                 name: (node.cfg as Record<string, unknown>)?.name || node.type,
                 version: (node.cfg as Record<string, unknown>)?.version ?? 1,
             },
-            props: node.props || {},
+            props: replaceRuleScope(node.props || {}, variableScope) as Record<string, unknown>,
         }));
 
         layoutNodes(processedNodes);
@@ -75,11 +120,42 @@ export async function createGraph(gateway: GatewayClient, input: CreateGraphInpu
             };
         }
 
+        if (variables.length > 0) {
+            shellCreated = true;
+            await gateway.callApi('setGraph', {
+                ...graph,
+                nodes: [{ id: 'setup', type: 'onLoad', cfg: { name: 'onLoad', version: 1 }, props: {}, inputs: {}, outputs: { output: [] } }],
+                cfg: { ...graph.cfg, enable: false },
+            }, 10000);
+            for (const variable of variables) {
+                createdVariables.push(variable.id);
+                await gateway.callApi('createVar', {
+                    scope: variableScope,
+                    id: variable.id,
+                    type: variable.type,
+                    value: variable.value,
+                    userData: { name: variable.name?.trim() || variable.id },
+                }, 10000);
+            }
+        }
+        const capabilityReport = await validateGraphCapabilitiesWithGateway(gateway, graph);
+        if (!capabilityReport.valid) throw new Error(`规则能力校验失败: ${capabilityReport.errors.map((item) => item.message).join('；')}`);
+
+        shellCreated = true;
         await gateway.callApi('setGraph', graph, 10000);
 
         return { success: true, data: { graphId }, message: `规则 "${input.name}" 创建成功` };
     } catch (error) {
-        return { success: false, error: `创建规则失败: ${error}` };
+        const cleanupErrors: string[] = [];
+        if (shellCreated) {
+            try {
+                await deleteGraphConfirmed(gateway, graphId);
+                if (createdVariables.length > 0) await gateway.callApi('deleteVar', { scope: variableScope, all: true }, 10000);
+            } catch (cleanupError) {
+                cleanupErrors.push(`自动清理失败，可能残留规则 ${graphId} 或作用域 ${variableScope}: ${cleanupError}`);
+            }
+        }
+        return { success: false, error: `创建规则失败: ${error}${cleanupErrors.length ? `；${cleanupErrors.join('；')}` : ''}` };
     }
 }
 
@@ -103,7 +179,20 @@ export async function updateGraph(gateway: GatewayClient, id: string, input: Par
         }));
 
         if (input.nodes) {
+            const existingPositions = new Map(existing.nodes.flatMap((node) => {
+                const pos = (node.cfg as Record<string, unknown>)?.pos;
+                return pos && typeof pos === 'object' ? [[node.id, pos] as const] : [];
+            }));
+            const positions = new Map(processedNodes.flatMap((node) => {
+                const pos = (node.cfg as Record<string, unknown>)?.pos;
+                const preserved = pos && typeof pos === 'object' ? pos : existingPositions.get(node.id);
+                return preserved ? [[node.id, preserved] as const] : [];
+            }));
             layoutNodes(processedNodes);
+            for (const node of processedNodes) {
+                const pos = positions.get(node.id);
+                if (pos) (node.cfg as Record<string, unknown>).pos = pos;
+            }
         }
 
         const graph = {
@@ -111,7 +200,7 @@ export async function updateGraph(gateway: GatewayClient, id: string, input: Par
             nodes: processedNodes,
             cfg: {
                 id,
-                enable: input.enable ?? true,
+                enable: input.enable ?? existing.cfg.enable,
                 uiType: 'graph',
                 userData: {
                     name: input.name || (graphInfo as unknown as { userData?: { name?: string } })?.userData?.name || '规则',
@@ -127,6 +216,8 @@ export async function updateGraph(gateway: GatewayClient, id: string, input: Par
             if (errorList.length > 0) {
                 return { success: false, error: `规则校验失败（${errorList.length} 个错误），请修复后重试` };
             }
+            const capabilityReport = await validateGraphCapabilitiesWithGateway(gateway, graph);
+            if (!capabilityReport.valid) return { success: false, error: `规则能力校验失败: ${capabilityReport.errors.map((item) => item.message).join('；')}` };
         }
 
         await gateway.callApi('setGraph', graph, 10000);
@@ -139,8 +230,18 @@ export async function updateGraph(gateway: GatewayClient, id: string, input: Par
 
 export async function deleteGraph(gateway: GatewayClient, id: string): Promise<ToolResponse> {
     try {
-        await gateway.callApi('deleteGraph', { id }, 10000);
-        return { success: true, message: `规则 ${id} 删除成功` };
+        const scope = `R${id}`;
+        const scopeResult = await gateway.callApi<{ scopes?: string[] } | string[]>('getVarScopeList', {}, 10000);
+        const scopes = Array.isArray(scopeResult) ? scopeResult : scopeResult.scopes || [];
+        const hasRuleVariables = scopes.includes(scope);
+        await deleteGraphConfirmed(gateway, id);
+        if (!hasRuleVariables) return { success: true, message: `规则 ${id} 删除成功` };
+        try {
+            await gateway.callApi('deleteVar', { scope, all: true }, 10000);
+            return { success: true, message: `规则 ${id} 及本规则变量已删除` };
+        } catch (cleanupError) {
+            return { success: false, error: `规则 ${id} 已删除，但变量作用域 ${scope} 清理失败: ${cleanupError}` };
+        }
     } catch (error) {
         return { success: false, error: `删除规则失败: ${error}` };
     }
