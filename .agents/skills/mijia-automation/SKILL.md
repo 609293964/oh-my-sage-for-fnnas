@@ -1,6 +1,6 @@
 ---
 name: mijia-automation
-description: 米家自动化极客版规则与变量管理指南。当用户想要创建智能场景、设备联动、定时任务、条件触发，或创建、读取、修改、删除自动化变量时使用此skill。
+description: 米家自动化极客版规则与变量管理指南。当用户想要创建智能场景、设备联动、定时任务、条件触发，或创建、读取、修改、删除自动化变量时使用此 Skill。
 metadata:
   author: oh-my-sage
   version: "3.5"
@@ -36,7 +36,7 @@ metadata:
 3. 检查 `src/core/tools/variable.ts`、`src/mcp/tools/variable.ts` 和实际运行的 `dist`，确认功能是未实现、未构建还是未加载。
 4. `mijia_set_variable` 返回变量不存在时，改用 `mijia_create_variable`，不要尝试用规则节点自动创建。
 5. `mijia_call_api` 拒绝 `createVar` 等写方法时，改用专用工具，不要放宽通用工具的只读白名单。
-6. 若怀疑功能曾存在但被回归删除，检查 Git 历史或会话中的真实工具调用记录，再下结论。
+6. 若怀疑功能曾存在但被回归删除，检查 Git 历史或 Session 中的真实工具调用记录，再下结论。
 
 实机验证过的生命周期：创建临时变量 -> 读取配置和值 -> 修改 -> 回读 -> 删除 -> 再次读取确认不存在。创建或恢复变量工具后应完整执行一次该流程，并清理临时变量。
 
