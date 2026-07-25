@@ -124,8 +124,18 @@ export function validateGraphCapabilities(nodes: GraphNode[], devices: Map<strin
         const requiredAccess = node.type === 'deviceInput' || node.type === 'deviceInputSetVar' ? 'notify' : node.type === 'deviceGet' || node.type === 'deviceGetSetVar' ? 'read' : 'write';
         if (!property.access.includes(requiredAccess)) errors.push(error(node, 'access_denied', `${property.desc} 不支持 ${requiredAccess}`));
         const setVar = node.type === 'deviceInputSetVar' || node.type === 'deviceGetSetVar';
-        if (props.dtype !== undefined && !graphDtypeMatches(property.dtype, props.dtype, setVar)) errors.push(error(node, 'dtype_mismatch', `${property.desc} 的 MIOT 类型为 ${property.dtype}，节点类型应兼容 ${setVar ? 'number' : property.dtype}`));
-        if (node.type === 'deviceOutput') errors.push(...validateValue(node, property, '=', props.value));
+        const dynamicOutput = node.type === 'deviceOutput' && typeof props.id === 'string' && typeof props.scope === 'string';
+        const variableValue = setVar || dynamicOutput;
+        if (props.dtype !== undefined && !graphDtypeMatches(property.dtype, props.dtype, variableValue)) errors.push(error(node, 'dtype_mismatch', `${property.desc} 的 MIOT 类型为 ${property.dtype}，节点类型应兼容 ${variableValue ? 'number' : property.dtype}`));
+        if (node.type === 'deviceOutput') {
+            if (dynamicOutput) {
+                if (property.range && (props.min !== property.range.min || props.max !== property.range.max || props.step !== property.range.step)) {
+                    errors.push(error(node, 'range_mismatch', `${property.desc} 的动态变量范围应为 ${JSON.stringify(property.range)}`));
+                }
+            } else {
+                errors.push(...validateValue(node, property, '=', props.value));
+            }
+        }
         else if (!setVar) errors.push(...validateValue(node, property, props.operator, props.v1, props.v2));
     }
     return { valid: errors.length === 0, errors, warnings, inspectedDids: [...devices.keys()], inspectedUrns: [...new Set([...devices.values()].map((device) => device.urn))] };

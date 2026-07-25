@@ -38,4 +38,14 @@ assert.equal(validateGraphCapabilities([{ ...scene, props: { ...scene.props, ins
 const delay = { id: 'd', type: 'deviceOutput', cfg: { urn: 'urn:test:lamp' }, props: { did: 'lamp', siid: 3, aiid: 2, ins: [{ piid: 2, value: 10 }] }, inputs: { trigger: null }, outputs: { output: [] } };
 assert.equal(validateGraphCapabilities([delay], lampMap).valid, true);
 assert.equal(validateGraphCapabilities([{ ...delay, props: { ...delay.props, ins: [{ piid: 2, value: 999 }] } }], lampMap).valid, false);
+
+const volumeDevice = {
+  urn: 'urn:test:speaker',
+  properties: [{ siid: 2, piid: 1, desc: 'Volume', dtype: 'uint8', access: ['read', 'write'], range: { min: 5, max: 100, step: 1 } }],
+  events: [],
+  actions: [],
+};
+const dynamicVolume = { id: 'volume', type: 'deviceOutput', cfg: { urn: 'urn:test:speaker' }, props: { did: 'speaker', siid: 2, piid: 1, id: 'volumeVar', scope: 'R1', dtype: 'number', min: 5, max: 100, step: 1 }, inputs: { trigger: null }, outputs: { output: [] } };
+assert.equal(validateGraphCapabilities([dynamicVolume], new Map([['speaker', volumeDevice]])).valid, true);
+assert.equal(validateGraphCapabilities([{ ...dynamicVolume, props: { ...dynamicVolume.props, max: 200 } }], new Map([['speaker', volumeDevice]])).valid, false);
 console.log('capability validation tests passed');
