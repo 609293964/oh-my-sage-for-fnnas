@@ -39,13 +39,13 @@ video
 | 主题 | 当前状态 | 最小验证 |
 |---|---|---|
 | `deviceGet` 新鲜度 | video | 正常上报、刚断电、已离线、从未上报四种状态下记录两分支和日志 |
-| trigger / condition / else 时序 | runtime-verified（部分） | 已确认先事件后状态不回补、false 走 unmet；未知状态仍需验证 |
-| 空输入与空输出 | runtime-verified（部分） | 已确认 modeSwitch 空输出占用轮次；logicAnd、logicOr、signalOr 空输入仍待验证 |
+| trigger / condition / else 时序 | runtime-verified | 已确认先事件后状态不回补、false 走 unmet；未知状态仍需验证 |
+| 空输入与空输出 | runtime-verified | 已确认 modeSwitch 空输出占用轮次；logicAnd、logicOr、signalOr 空输入仍待验证 |
 | 枚举多选集合 | video | 执行集合外→内、集合内切换、离开后再进入，记录触发次数和真实图 JSON |
 | 模式游标与状态查询链 | video | App 外部改档后立即/延迟触发，比较查询值、下一动作和异常兜底 |
-| 虚拟事件协同 | runtime-verified（部分） | 已确认网关规则可产生并消费同名字符串事件；App 创建、通知往返及重复触发仍待验证 |
-| 启动恢复动作 | video / conflicted | 用无害灯记录规则启用、设备上线、延迟动作和人工操作竞争的时间线 |
-| 节律渐变 | video / conflicted | 三分钟短区间验证初始化、步长、终点夹紧、中途关灯、重启和停止 |
+| 虚拟事件协同 | runtime-verified | 已确认网关规则可产生并消费同名字符串事件；App 创建、通知往返及重复触发仍待验证 |
+| 启动恢复动作 | video, conflicted | 用无害灯记录规则启用、设备上线、延迟动作和人工操作竞争的时间线 |
+| 节律渐变 | video, conflicted | 三分钟短区间验证初始化、步长、终点夹紧、中途关灯、重启和停止 |
 
 ## 已验证命题
 

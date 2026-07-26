@@ -42,10 +42,11 @@ export function registerGraphTools(
   gatewayManager: GatewayManager
 ): void {
   const drafts = new GraphDraftStore();
-  const restoreDraftError = (draftId: string, error: unknown): string => {
+  const restoreDraftError = (draftId: string, commitToken: string | undefined, error: unknown): string => {
     const original = handleError(error, "graph_draft_commit");
+    if (!commitToken) return original;
     try {
-      drafts.failCommit(draftId);
+      drafts.failCommit(draftId, commitToken);
       return original;
     } catch (restoreError) {
       return `${original}；草稿状态恢复失败: ${String(restoreError)}`;
@@ -364,22 +365,24 @@ export function registerGraphTools(
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     },
     async ({ draftId }) => {
+      let commitToken: string | undefined;
       try {
         gatewayManager.ensureConnected();
         const commit = drafts.beginCommit(draftId);
+        commitToken = commit.commitToken;
         if (commit.committedGraphId) {
           const output = { graphId: commit.committedGraphId, message: "草稿已提交" };
           return { content: [{ type: "text", text: formatJson(output) }], structuredContent: output };
         }
         const result = await createGraph(gatewayManager.gateway!, commit.input!);
         if (!result.success) {
-          return { content: [{ type: "text", text: restoreDraftError(draftId, new Error(result.error)) }], isError: true };
+          return { content: [{ type: "text", text: restoreDraftError(draftId, commitToken, new Error(result.error)) }], isError: true };
         }
-        const summary = drafts.completeCommit(draftId, result.data!.graphId);
+        const summary = drafts.completeCommit(draftId, result.data!.graphId, commitToken);
         const output = { graphId: summary.graphId, nodeCount: summary.nodeCount, message: result.message };
         return { content: [{ type: "text", text: formatJson(output) }], structuredContent: output };
       } catch (error) {
-        return { content: [{ type: "text", text: restoreDraftError(draftId, error) }], isError: true };
+        return { content: [{ type: "text", text: restoreDraftError(draftId, commitToken, error) }], isError: true };
       }
     }
   );

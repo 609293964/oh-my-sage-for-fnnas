@@ -62,18 +62,29 @@ test('草稿可从磁盘恢复并保留提交中的固定规则 ID', () => withS
 test('提交完成后重复提交返回同一规则 ID', () => withStore((drafts) => {
     const id = drafts.begin({ name: 'test' });
     drafts.append(id, [node('a')]);
-    drafts.beginCommit(id);
-    drafts.completeCommit(id, '1234567890123');
+    const commit = drafts.beginCommit(id);
+    drafts.completeCommit(id, '1234567890123', commit.commitToken);
     assert.deepEqual(drafts.beginCommit(id), { committedGraphId: '1234567890123' });
 }));
 
 test('提交失败后草稿恢复为可编辑', () => withStore((drafts) => {
     const id = drafts.begin({ name: 'test' });
     drafts.append(id, [node('a')]);
-    drafts.beginCommit(id);
-    drafts.failCommit(id);
+    const commit = drafts.beginCommit(id);
+    drafts.failCommit(id, commit.commitToken);
     assert.equal(drafts.status(id).status, 'building');
     assert.doesNotThrow(() => drafts.edit(id, [node('a', 'delay')]));
+}));
+
+test('并发提交被拒绝时不能解除已有提交锁', () => withStore((drafts) => {
+    const id = drafts.begin({ name: 'test' });
+    drafts.append(id, [node('a')]);
+    const first = drafts.beginCommit(id);
+    assert.throws(() => drafts.beginCommit(id), /正在提交/);
+    assert.throws(() => drafts.failCommit(id), /提交令牌不匹配/);
+    assert.throws(() => drafts.beginCommit(id), /正在提交/);
+    drafts.failCommit(id, first.commitToken);
+    assert.equal(drafts.status(id).status, 'building');
 }));
 
 test('复杂规则草稿删除后不能继续读取', () => withStore((drafts) => {

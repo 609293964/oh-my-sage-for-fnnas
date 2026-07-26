@@ -37,7 +37,7 @@ function clone<T>(value: T): T {
 
 export class GraphDraftStore {
     private readonly drafts = new Map<string, GraphDraft>();
-    private readonly activeCommits = new Set<string>();
+    private readonly activeCommits = new Map<string, string>();
     private readonly cleanupTimer: NodeJS.Timeout;
 
     constructor(private readonly storePath = DEFAULT_STORE_PATH) {
@@ -101,7 +101,7 @@ export class GraphDraftStore {
         return this.summary(id, draft);
     }
 
-    beginCommit(id: string): { input?: CreateGraphInput; committedGraphId?: string } {
+    beginCommit(id: string): { input?: CreateGraphInput; committedGraphId?: string; commitToken?: string } {
         const draft = this.get(id);
         if (draft.status === 'committed') return { committedGraphId: draft.graphId };
         if (this.activeCommits.has(id)) throw new Error('规则草稿正在提交，请稍后查询状态');
@@ -111,8 +111,10 @@ export class GraphDraftStore {
             draft.graphId = String(randomInt(1_000_000_000_000, 10_000_000_000_000));
             this.touch(draft);
         }
-        this.activeCommits.add(id);
+        const commitToken = randomUUID();
+        this.activeCommits.set(id, commitToken);
         return {
+            commitToken,
             input: {
                 graphId: draft.graphId,
                 name: draft.name,
@@ -123,21 +125,28 @@ export class GraphDraftStore {
         };
     }
 
-    completeCommit(id: string, graphId: string): GraphDraftSummary {
+    completeCommit(id: string, graphId: string, commitToken?: string): GraphDraftSummary {
+        this.releaseCommit(id, commitToken);
         const draft = this.get(id);
         draft.status = 'committed';
         draft.graphId = graphId;
         this.touch(draft);
-        this.activeCommits.delete(id);
         return this.summary(id, draft);
     }
 
-    failCommit(id: string): void {
-        this.activeCommits.delete(id);
+    failCommit(id: string, commitToken?: string): void {
+        this.releaseCommit(id, commitToken);
         const draft = this.drafts.get(id);
         if (!draft || draft.status === 'committed') return;
         draft.status = 'building';
         this.touch(draft);
+    }
+
+    private releaseCommit(id: string, commitToken?: string): void {
+        const activeToken = this.activeCommits.get(id);
+        if (!activeToken) return;
+        if (!commitToken || activeToken !== commitToken) throw new Error('提交令牌不匹配，不能修改草稿状态');
+        this.activeCommits.delete(id);
     }
 
     delete(id: string): boolean {
