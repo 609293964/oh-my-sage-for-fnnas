@@ -3,7 +3,7 @@ name: mijia-automation
 description: 米家自动化极客版规则与变量管理指南。当用户想要创建智能场景、设备联动、定时任务、条件触发，或创建、读取、修改、删除自动化变量时使用此 Skill。
 metadata:
   author: oh-my-sage
-  version: "3.7"
+  version: "3.8"
 ---
 
 # 米家自动化规则创建
@@ -11,6 +11,20 @@ metadata:
 ## 设计新自动化时的知识检索
 
 不要一开始就堆节点。先把需求拆成：触发、状态、变换、条件、动作、退出、恢复，再读取 [知识索引](references/index.md) 中最相关的一至三个模式文件。
+
+快速选择模式：
+
+| 问题 | 模式 |
+|---|---|
+| 需要跨事件记住值、模式或时间点 | `PAT-STATE-01` |
+| 需要计算、映射、取整、量化或夹紧 | `PAT-NUM-01` |
+| 需要多源汇总、任一/全部或至少 k 个 | `PAT-AGG-01` |
+| 需要日期、时长、时间窗口或节律 | `PAT-TIME-01` |
+| 需要重复执行、停止、清零或恢复 | `PAT-LOOP-01` |
+| 需要设备跟随、双向同步或按实际状态切档 | `PAT-SYNC-01` |
+| 需要跨设备型号、跨规则、模板或虚拟事件 | `PAT-ADAPT-01` |
+
+常见组合：节律照明 = `TIME + NUM + LOOP`；外部可改档设备 = `STATE + SYNC`；重复提醒 = `STATE + LOOP + ADAPT`。
 
 模式用于选择结构和发现风险，不是固定模板。组合模式后仍须根据目标设备 MIOT Spec 重新确定 DID、URN、字段、量程、步进、枚举和动作参数。不得照抄案例中的设备、阈值、变量名或私有标识。
 
@@ -141,12 +155,39 @@ video → ui-sample → graph-diff → local-tested → gateway-roundtrip → ru
 当用户要求创建/修改自动化规则时，按以下步骤执行：
 
 1. **理解需求**：分析用户的自动化逻辑，确定需要哪些节点
-2. **生成节点列表**：按照节点模板和连接规则构建 nodes 数组
-3. **调用能力校验**：MCP 使用 `mijia_validate_graph_capabilities`，Web Agent 使用 `validate_graph_capabilities`，确认设备字段、权限、类型、范围、动作参数和变量引用
-4. **调用结构校验**：MCP 使用 `mijia_validate_graph`，Web Agent 使用 `validate_graph`，检查连接完整性
-5. **修复错误**：任一校验器报告 error 时修复并重新校验，直到全部通过
-6. **调用 create_graph 或 update_graph**：两项校验通过后调用创建/更新工具；工具内部仍会再次校验
-7. **确认结果**：回读规则并确认启用状态、变量作用域和关键节点
+2. **先写设计表**：列出业务触发、持续状态、true/false/unknown 分支、变量及初值、状态转换、循环启停、恢复动作、失败行为和所选模式
+3. **生成节点列表**：按照节点模板和连接规则构建 nodes 数组；超过 10 个节点时先列出事件边和状态边两张连接清单
+4. **调用能力校验**：MCP 使用 `mijia_validate_graph_capabilities`，Web Agent 使用 `validate_graph_capabilities`，确认设备字段、权限、类型、范围、动作参数和变量引用
+5. **调用结构校验**：MCP 使用 `mijia_validate_graph`，Web Agent 使用 `validate_graph`，检查连接完整性
+6. **修复错误**：任一校验器报告 error 时修复并重新校验，直到全部通过
+7. **调用 create_graph 或 update_graph**：两项校验通过后调用创建/更新工具；工具内部仍会再次校验
+8. **确认结果**：回读规则并确认启用状态、变量作用域和关键节点
+
+设计表使用固定格式：
+
+| 项目 | 设计 |
+|---|---|
+| 业务触发 | 哪个瞬时事件启动流程 |
+| 持续状态 | 判断时读取哪些状态，值是否可能陈旧 |
+| 分支 | true / false 分别做什么；unknown 如何识别和降级 |
+| 变量 | ID、类型、初值、生产者、清理时机 |
+| 状态转换 | 当前状态、允许的下一状态、异常兜底 |
+| 循环 | start、每轮检查、最大次数、stop、zero |
+| 恢复 | 结束、禁用、重启和人工操作后如何收敛 |
+| 失败行为 | 查询失败、写入拒绝、校验失败或重试耗尽后停止、保持还是通知 |
+| 模式与证据 | 选用的 PAT 及关键命题证据等级 |
+
+`deviceGet.output2` 只表示比较结果不满足，不是查询失败或 unknown 专口。无法直接区分 unknown 时，用初始化/就绪变量、最后更新时间、在线状态或保守停止表达；不要虚构第三个输出端口。
+
+MCP 模式下**创建**超过 10 个节点的复杂规则时，不要调用两个独立校验工具后再重复发送完整图。先确认当前 MCP 工具列表包含 `mijia_graph_draft_*`，然后使用分块草稿流程。草稿工具不用于更新现有规则；复杂更新仍使用 `mijia_update_graph`：
+
+1. `mijia_graph_draft_begin` 创建草稿并取得 `draftId`。
+2. `mijia_graph_draft_append` 每批追加 5 至 10 个节点，每个节点只上传一次。
+3. 校验失败后用 `mijia_graph_draft_edit` 按 ID 修正或删除节点；用 `mijia_graph_draft_status` 查看轻量状态。
+4. `mijia_graph_draft_commit` 只传 `draftId`；服务端一次完成结构校验、设备能力校验、布局和创建，不再调用两个独立校验工具。
+5. 放弃方案时调用 `mijia_graph_draft_discard`；草稿会临时持久化并在 30 分钟后自动过期。
+
+小规则和 Web Agent 继续使用原双校验流程。草稿工具缺失时不要虚构调用，改用原流程。复杂规则草稿提交失败时会保留；成功响应丢失或重复提交时返回同一个规则 ID。
 
 **⚠️ create_graph / update_graph 内置了校验逻辑。如果节点连接有 error 级别的问题，工具会返回错误并拒绝调用 setGraph。修复后重新调用即可。**
 
@@ -253,6 +294,7 @@ video → ui-sample → graph-diff → local-tested → gateway-roundtrip → ru
 {"id":"$ID","type":"modeSwitch","cfg":{"name":"modeSwitch","version":1},"props":{},"inputs":{"input":null},"outputs":{"output0":[],"output1":[],"output2":[]}}
 ```
 ⚠️ outputs 根据模式数量声明 output0, output1, ...
+空 outputs 仍占用并推进一个模式轮次，当前网关已实测；规则重启后的游标位置仍需验证。外部 App、语音或实体控制会改变设备状态时，优先使用状态查询链，不依赖内部游标。
 
 ### register - 自定义布尔状态
 ```json

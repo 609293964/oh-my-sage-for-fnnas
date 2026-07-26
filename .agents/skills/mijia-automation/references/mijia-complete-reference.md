@@ -158,7 +158,7 @@ urn:miot-spec-v2:property:on:00000006:00000001
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| specV2Access | boolean | 是否支持 MIOT Spec V2（必须为 true 才能创建规则） |
+| specV2Access | boolean | 是否支持 MIOT Spec V2；用于发现可配置字段 |
 | specV3Access | boolean | 是否支持 MIOT Spec V3 |
 | online | boolean | 设备是否在线（离线设备无法触发） |
 | pushAvailable | boolean | 设备是否可推送属性变化 |
@@ -170,7 +170,7 @@ urn:miot-spec-v2:property:on:00000006:00000001
 | roomName | string | 所属房间名称（如"客厅"） |
 | icon | string | 设备图标 URL |
 
-**筛选可用设备**：`specV2Access === true && online === true`
+**判断层次**：Spec 和字段可发现决定能否建图；`online=true` 决定当前是否适合实测。离线不必然禁止保存规则，但无法证明当前可运行。
 
 ### MIOT Spec 网站查询
 
@@ -550,7 +550,7 @@ MIOT Spec 使用的 format 值与网关要求的 dtype 不同，需要转换：
 {
   "piid": 1,
   "scope": "global",
-  "id": "var_xxx",
+  "id": "varBrightness",
   "dtype": "number",
   "max": 100,
   "min": 0,
@@ -1120,7 +1120,7 @@ deviceInput → condition1
     "piid": 1,
     "dtype": "number",
     "scope": "global",
-    "id": "var_temperature",
+    "id": "varTemperature",
     "preload": false
   },
   "inputs": {},
@@ -1150,7 +1150,7 @@ deviceInput → condition1
     "siid": 4,
     "eiid": 1,
     "arguments": [
-      {"piid": 1, "dtype": "string", "scope": "global", "id": "var_scene"}
+      {"piid": 1, "dtype": "string", "scope": "global", "id": "varScene"}
     ]
   }
 }
@@ -1173,7 +1173,7 @@ deviceInput → condition1
     "piid": 2,
     "dtype": "number",
     "scope": "global",
-    "id": "var_brightness"
+    "id": "varBrightness"
   },
   "inputs": {"input": null},
   "outputs": {"output": ["nextNode.trigger"]}
@@ -1193,7 +1193,7 @@ deviceInput → condition1
   "cfg": {"name": "varChange", "version": 1, "pos": {...}},
   "props": {
     "scope": "global",
-    "id": "var_temperature",
+    "id": "varTemperature",
     "varType": "number",
     "preload": true,
     "operator": ">=",
@@ -1225,7 +1225,7 @@ deviceInput → condition1
   "cfg": {"name": "varGet", "version": 1, "pos": {...}},
   "props": {
     "scope": "global",
-    "id": "var_count",
+    "id": "varCount",
     "varType": "number",
     "operator": ">=",
     "v1": 10
@@ -1251,7 +1251,7 @@ deviceInput → condition1
   "cfg": {"name": "varSetNumber", "version": 1, "pos": {...}},
   "props": {
     "scope": "global",
-    "id": "var_result",
+    "id": "varResult",
     "elements": [
       {"type": "const", "value": "$"},
       {"type": "const", "value": "+"},
@@ -1265,7 +1265,7 @@ deviceInput → condition1
 
 **elements**：表达式元素数组
 - `{"type": "const", "value": "数字或运算符"}` — 常量
-- `{"type": "var", "scope": "global", "id": "var_xxx"}` — 变量引用（用 `$` 占位）
+- `{"type": "var", "scope": "global", "id": "varValue"}` — 变量引用（用 `$` 占位）
 
 所有 const 元素的 value 拼接后（var 元素替换为 `$`）必须是合法的数学表达式。
 
@@ -1300,10 +1300,10 @@ deviceInput → condition1
   "cfg": {"name": "varSetString", "version": 1, "pos": {...}},
   "props": {
     "scope": "global",
-    "id": "var_message",
+    "id": "varMessage",
     "elements": [
       {"type": "const", "value": "温度是"},
-      {"type": "var", "scope": "global", "id": "var_temp"},
+      {"type": "var", "scope": "global", "id": "varTemperature"},
       {"type": "const", "value": "度"}
     ]
   },
@@ -1313,7 +1313,7 @@ deviceInput → condition1
 ```
 
 - `{"type": "const", "value": "文本"}` — 常量字符串
-- `{"type": "var", "scope": "global", "id": "var_xxx"}` — 变量值
+- `{"type": "var", "scope": "global", "id": "varValue"}` — 变量值
 
 结果是所有元素的文本拼接。
 

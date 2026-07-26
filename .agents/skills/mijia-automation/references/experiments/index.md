@@ -39,10 +39,26 @@ video
 | 主题 | 当前状态 | 最小验证 |
 |---|---|---|
 | `deviceGet` 新鲜度 | video | 正常上报、刚断电、已离线、从未上报四种状态下记录两分支和日志 |
-| trigger / condition / else 时序 | video / ui-sample | 先事件后状态、先状态后事件、未知状态分别记录是否执行和是否回补 |
-| 空输入与空输出 | video | 分别保存并运行 logicAnd、logicOr、signalOr 空输入和 modeSwitch 空输出 |
+| trigger / condition / else 时序 | runtime-verified（部分） | 已确认先事件后状态不回补、false 走 unmet；未知状态仍需验证 |
+| 空输入与空输出 | runtime-verified（部分） | 已确认 modeSwitch 空输出占用轮次；logicAnd、logicOr、signalOr 空输入仍待验证 |
 | 枚举多选集合 | video | 执行集合外→内、集合内切换、离开后再进入，记录触发次数和真实图 JSON |
 | 模式游标与状态查询链 | video | App 外部改档后立即/延迟触发，比较查询值、下一动作和异常兜底 |
-| 虚拟事件协同 | video | 分别确认 App 创建、规则消费、规则产生、App 通知往返及重复触发 |
+| 虚拟事件协同 | runtime-verified（部分） | 已确认网关规则可产生并消费同名字符串事件；App 创建、通知往返及重复触发仍待验证 |
 | 启动恢复动作 | video / conflicted | 用无害灯记录规则启用、设备上线、延迟动作和人工操作竞争的时间线 |
 | 节律渐变 | video / conflicted | 三分钟短区间验证初始化、步长、终点夹紧、中途关灯、重启和停止 |
+
+## 已验证命题
+
+验证批次：`EXP-20260726-01`，当前中枢网关，临时规则创建、回读变量、删除规则及变量后确认无残留。
+
+| 命题 | 状态 | 本轮结果 | 未覆盖边界 |
+|---|---|---|---|
+| `month()` 可在规则运行时返回月份 | runtime-verified | 返回 `7` | 时区、跨月 |
+| `hours()` 可在规则运行时返回小时 | runtime-verified | 返回 `17` | 时区、夏令时 |
+| `min()` 可夹紧渐变终点 | runtime-verified | 超调表达式被夹紧为 `25` | 下降段、设备步进 |
+| `deviceGet` 按比较结果走双分支 | runtime-verified | 当前开关命中满足分支 | 离线、未知、旧值时长 |
+| 事件先到、状态稍后变真不会回补 | runtime-verified | 事件早约 500 ms，`met` 未执行 | 不同状态源、固件 |
+| 条件为 false 时执行 `unmet` | runtime-verified | `unmet` 分支执行一次 | 未知值 |
+| counter 可在第 3 轮停止 loop | runtime-verified | 循环变量最终为 `3` | 重启、并发启动 |
+| modeSwitch 空输出仍占一个轮次 | runtime-verified | A、B 各执行一次，第三空档终止链 | 重启后游标 |
+| 网关虚拟事件可由规则产生并消费 | runtime-verified | 同名字符串事件被消费一次 | App 通知、重复触发、跨规则重启 |

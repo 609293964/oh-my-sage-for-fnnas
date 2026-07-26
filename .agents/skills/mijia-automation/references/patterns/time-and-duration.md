@@ -48,3 +48,14 @@ durationMs = end - start
 - 每段结束夹紧目标值，并处理错过开始/结束事件。
 - 验证时区、经纬度来源、跨午夜、夏令时和 `remaining > 0`。
 - 家庭位置和作息只留在私有配置，不进入公开模板。
+
+推荐执行顺序：
+
+1. 计算当前所属时间段。
+2. 根据当前时间直接计算理论值，不从陈旧累计值继续加：`progress = clamp((now-start)/(end-start), 0, 1)`，`value = startValue + progress*(targetValue-startValue)`。
+3. 按目标设备 step 量化。
+4. 使用 `min/max` 同时夹紧分段目标和 MIOT 范围。
+5. 写入设备；到终点停止 loop。
+6. 中途启用、错过边界或跨日时重新计算当前位置。
+
+当前网关已验证 `month()`、`hours()` 可在运行时取值，且 `min()` 能将超调表达式夹紧到目标值；时区、跨月和完整全天曲线仍需验证。

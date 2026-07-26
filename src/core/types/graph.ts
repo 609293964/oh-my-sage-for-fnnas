@@ -47,6 +47,7 @@ export interface GraphSummary {
 
 /** 创建规则输入 */
 export interface CreateGraphInput {
+    graphId?: string;
     name: string;
     nodes: GraphNode[];
     enable?: boolean;
