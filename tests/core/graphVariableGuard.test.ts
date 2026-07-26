@@ -1,7 +1,31 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { GatewayClient } from '../../src/core/gateway/client';
-import { createGraph, deleteGraph, updateGraph } from '../../src/core/tools/graph';
+import { createGraph, deleteGraph, getGraph, updateGraph } from '../../src/core/tools/graph';
+
+test('规则详情缺少 cfg 时使用列表元数据补齐', async () => {
+    const gateway = {
+        async callApi(method: string): Promise<unknown> {
+            if (method === 'getGraph') return { id: '123', nodes: [] };
+            if (method === 'getGraphList') return [{
+                id: '123',
+                enable: true,
+                userData: {
+                    name: '补齐规则',
+                    lastUpdateTime: 42,
+                    transform: { x: 1, y: 2, scale: 1, rotate: 0 },
+                },
+            }];
+            throw new Error(`意外的方法 ${method}`);
+        },
+    } as unknown as GatewayClient;
+
+    const result = await getGraph(gateway, '123');
+
+    assert.equal(result.success, true);
+    assert.equal(result.success ? result.data?.cfg.enable : false, true);
+    assert.equal(result.success ? result.data?.cfg.userData.name : '', '补齐规则');
+});
 
 test('创建规则时拒绝未登记变量且不调用 setGraph', async () => {
     const calls: string[] = [];
@@ -240,6 +264,23 @@ test('更新规则未指定 enable 时保留禁用状态', async () => {
 
     assert.equal(result.success, true);
     assert.equal(saved?.cfg.enable, false);
+});
+
+test('更新旧规则缺少 cfg 时从列表保留启用状态', async () => {
+    let saved: { cfg: { enable: boolean } } | undefined;
+    const gateway = {
+        async callApi(method: string, input: unknown): Promise<unknown> {
+            if (method === 'getGraph') return { id: '1', nodes: [] };
+            if (method === 'getGraphList') return [{ id: '1', enable: true, userData: { name: 'Legacy' } }];
+            if (method === 'setGraph') saved = input as typeof saved;
+            return undefined;
+        },
+    } as unknown as GatewayClient;
+
+    const result = await updateGraph(gateway, '1', { name: 'Still Enabled' });
+
+    assert.equal(result.success, true);
+    assert.equal(saved?.cfg.enable, true);
 });
 
 test('创建规则一次登记本规则变量并替换 rule 作用域', async () => {

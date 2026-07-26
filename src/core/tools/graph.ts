@@ -80,6 +80,24 @@ export async function getGraphs(gateway: GatewayClient): Promise<ToolResponse<Gr
 export async function getGraph(gateway: GatewayClient, id: string): Promise<ToolResponse<Graph>> {
     try {
         const graph = await gateway.callApi<Graph>('getGraph', { id }, 10000);
+        if (!graph.cfg) {
+            const graphList = await gateway.callApi<Array<{
+                id: string;
+                enable?: boolean;
+                userData?: Graph['cfg']['userData'];
+            }>>('getGraphList', {}, 10000);
+            const info = Array.isArray(graphList) ? graphList.find((item) => item.id === id) : undefined;
+            graph.cfg = {
+                id,
+                enable: info?.enable ?? false,
+                uiType: 'graph',
+                userData: {
+                    name: info?.userData?.name || id,
+                    lastUpdateTime: info?.userData?.lastUpdateTime || 0,
+                    transform: info?.userData?.transform || { x: 0, y: 0, scale: 1, rotate: 0 },
+                },
+            };
+        }
         return { success: true, data: graph };
     } catch (error) {
         return { success: false, error: `获取规则详情失败: ${error}` };
@@ -254,7 +272,7 @@ export async function updateGraph(gateway: GatewayClient, id: string, input: Upd
             nodes: processedNodes,
             cfg: {
                 id,
-                enable: input.enable ?? existing.cfg.enable,
+                enable: input.enable ?? existing.cfg?.enable ?? (graphInfo as unknown as { enable?: boolean })?.enable ?? false,
                 uiType: 'graph',
                 userData: {
                     name: input.name || (graphInfo as unknown as { userData?: { name?: string } })?.userData?.name || '规则',
