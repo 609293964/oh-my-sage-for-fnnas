@@ -85,32 +85,33 @@ function parseSkillFile(filePath: string): Skill | null {
 /**
  * 列出目录下的资源文件
  */
-function listResources(baseDir: string): string[] {
+export function listResources(baseDir: string): string[] {
     const resources: string[] = [];
 
-    try {
-        const entries = fs.readdirSync(baseDir, {withFileTypes: true});
+    const walk = (directory: string, prefix = ''): void => {
+        let entries: fs.Dirent[];
+        try {
+            entries = fs.readdirSync(directory, {withFileTypes: true});
+        } catch (error) {
+            console.error(`[Skill] 列出资源失败: ${directory}`, error);
+            return;
+        }
+
+        entries.sort((a, b) => a.name.localeCompare(b.name));
         for (const entry of entries) {
-            if (entry.isFile() && entry.name !== 'SKILL.md') {
-                resources.push(entry.name);
+            if (entry.isSymbolicLink()) {
+                continue;
+            }
+            const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+            if (entry.isFile() && relative !== 'SKILL.md') {
+                resources.push(relative);
             } else if (entry.isDirectory() && !entry.name.startsWith('.')) {
-                // 递归列出子目录中的文件
-                const subDir = path.join(baseDir, entry.name);
-                try {
-                    const subEntries = fs.readdirSync(subDir, {withFileTypes: true});
-                    for (const subEntry of subEntries) {
-                        if (subEntry.isFile()) {
-                            resources.push(`${entry.name}/${subEntry.name}`);
-                        }
-                    }
-                } catch {
-                    resources.push(`${entry.name}/`);
-                }
+                walk(path.join(directory, entry.name), relative);
             }
         }
-    } catch (error) {
-        console.error(`[Skill] 列出资源失败: ${baseDir}`, error);
-    }
+    };
+
+    walk(baseDir);
 
     return resources;
 }
@@ -264,15 +265,23 @@ export function readSkillFile(skillName: string, filePath: string): string | nul
     }
 
     const absolutePath = path.resolve(skill.baseDir, filePath);
+    const relativePath = path.relative(skill.baseDir, absolutePath);
 
     // 安全检查：确保引用在 Skill 目录内
-    if (!absolutePath.startsWith(skill.baseDir)) {
+    if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
         console.warn(`[Skill] 引用路径超出 Skill 目录: ${filePath}`);
         return null;
     }
 
     try {
         if (fs.existsSync(absolutePath)) {
+            const realBaseDir = fs.realpathSync(skill.baseDir);
+            const realPath = fs.realpathSync(absolutePath);
+            const realRelativePath = path.relative(realBaseDir, realPath);
+            if (realRelativePath.startsWith('..') || path.isAbsolute(realRelativePath)) {
+                console.warn(`[Skill] 符号链接路径超出 Skill 目录: ${filePath}`);
+                return null;
+            }
             return fs.readFileSync(absolutePath, 'utf8');
         } else {
             console.warn(`[Skill] 文件不存在: ${absolutePath}`);

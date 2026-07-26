@@ -3,10 +3,26 @@ name: mijia-automation
 description: 米家自动化极客版规则与变量管理指南。当用户想要创建智能场景、设备联动、定时任务、条件触发，或创建、读取、修改、删除自动化变量时使用此 Skill。
 metadata:
   author: oh-my-sage
-  version: "3.5"
+  version: "3.7"
 ---
 
 # 米家自动化规则创建
+
+## 设计新自动化时的知识检索
+
+不要一开始就堆节点。先把需求拆成：触发、状态、变换、条件、动作、退出、恢复，再读取 [知识索引](references/index.md) 中最相关的一至三个模式文件。
+
+模式用于选择结构和发现风险，不是固定模板。组合模式后仍须根据目标设备 MIOT Spec 重新确定 DID、URN、字段、量程、步进、枚举和动作参数。不得照抄案例中的设备、阈值、变量名或私有标识。
+
+案例知识按以下状态升级：
+
+```text
+video → ui-sample → graph-diff → local-tested → gateway-roundtrip → runtime-verified → reusable-pattern
+```
+
+视频案例只是设计线索。未达到 `runtime-verified` 的行为不得写成强制校验规则；达到 `reusable-pattern` 还必须满足脱敏、跨场景适用和边界明确，才可作为通用模式推荐。证据可从真实规则、源码或网关样本开始，不要求机械经过每一级。
+
+完整节点字段按需读取 [米家自动化规则完全参考](references/mijia-complete-reference.md)，不要把全部节点模板和全部案例同时加载。
 
 ## 变量生命周期能力
 
@@ -46,10 +62,10 @@ metadata:
 
 ```json
 {
-  "id": "graph_时间戳",
+  "id": "13位纯数字规则ID",
   "nodes": [节点1, 节点2, ...],
   "cfg": {
-    "id": "graph_时间戳",
+    "id": "13位纯数字规则ID",
     "enable": true,
     "uiType": "graph",
     "userData": {
@@ -78,7 +94,7 @@ metadata:
 6. **inputs 命名**：
    - `deviceGet`, `varGet`, `statusLast`, **`delay`** 用 `input`
    - `deviceOutput`, `condition` 等用 `trigger`
-   - `timeRange`, `alarmClock` 等**状态节点没有输入端口**（`inputs: {}`）
+   - `timeRange`, `alarmClock` 等**源节点没有输入端口**（`inputs: {}`）
 7. **dtype 映射**：`bool`→`boolean`，`uint8`/`int32`→`int`，`float`→`float`
 8. **props 必须存在**：`"props": {}` 不能省略
 9. **cfg.name**：值为节点类型名（如 `"deviceInput"`）
@@ -102,14 +118,15 @@ metadata:
 2. 引用的端口名是目标节点 inputs 中声明的端口名
 3. 点分隔格式正确：`"目标节点ID.目标端口名"`
 
-### state 节点 vs event 节点
+### 事件源、条件状态和流程节点
 
-| 类型 | 特征 | inputs | 代表节点 |
-|------|------|--------|----------|
-| **event 节点** | 可被触发 | 有 trigger/input 端口 | deviceOutput, condition, delay |
-| **state 节点** | 不能被触发 | `inputs: {}`（空） | timeRange, alarmClock, deviceInputSetVar |
+| 类型 | 特征 | 代表节点 |
+|------|------|----------|
+| **事件源** | 无输入，主动产生流程事件 | deviceInput, alarmClock, onLoad, varChange |
+| **条件状态源/变换** | 向 condition 或 logic 提供布尔状态 | timeRange, 设备属性状态, logicOr/logicAnd/logicNot |
+| **流程节点** | 接收事件后查询、判断、延时或执行 | deviceGet, condition, delay, deviceOutput |
 
-**⚠️ state 条件节点通常连接 `condition.condition`，也可以先进入 `logicOr` / `logicAnd` / `logicNot`，再连接 `condition.condition`。state 节点没有输入端口，不能接收事件触发。**
+**⚠️ 无输入节点不能接收上游连接。条件状态通常连接 `condition.condition`，也可以先进入 `logicOr` / `logicAnd` / `logicNot`，再连接 `condition.condition`。**
 
 ### ⚠️ 网关不检查连接完整性（已验证）
 
@@ -125,10 +142,11 @@ metadata:
 
 1. **理解需求**：分析用户的自动化逻辑，确定需要哪些节点
 2. **生成节点列表**：按照节点模板和连接规则构建 nodes 数组
-3. **调用 validate_graph 校验**：使用 `validate_graph` 工具传入完整的 graph JSON（nodes + cfg），检查连接完整性
-4. **修复错误**：如果校验器报告 error 级别的问题，修复节点连接后重新校验，直到全部通过
-5. **调用 create_graph 或 update_graph**：校验通过后调用创建/更新工具（注意：create_graph 和 update_graph 内部也会自动校验，如有错误会拒绝执行）
-6. **确认结果**：向用户确认规则创建成功
+3. **调用能力校验**：MCP 使用 `mijia_validate_graph_capabilities`，Web Agent 使用 `validate_graph_capabilities`，确认设备字段、权限、类型、范围、动作参数和变量引用
+4. **调用结构校验**：MCP 使用 `mijia_validate_graph`，Web Agent 使用 `validate_graph`，检查连接完整性
+5. **修复错误**：任一校验器报告 error 时修复并重新校验，直到全部通过
+6. **调用 create_graph 或 update_graph**：两项校验通过后调用创建/更新工具；工具内部仍会再次校验
+7. **确认结果**：回读规则并确认启用状态、变量作用域和关键节点
 
 **⚠️ create_graph / update_graph 内置了校验逻辑。如果节点连接有 error 级别的问题，工具会返回错误并拒绝调用 setGraph。修复后重新调用即可。**
 
@@ -166,11 +184,13 @@ metadata:
 ```
 ⚠️ `inputs` 必须用 `input`，不是 `trigger`。`output` 和 `output2` 都应连到 event 节点（如 condition.trigger）。禁止将 output2 连到 state 节点。
 
-### alarmClock - 定时触发（state 节点）
+`deviceGet` 取得网关可用于判定的属性值，不得默认等同于物理设备的实时状态。缓存、最近上报、离线和未知值语义需按设备与固件实测；安全动作必须设计未知/旧值保护。
+
+### alarmClock - 定时触发（事件源）
 ```json
 {"id":"$ID","type":"alarmClock","cfg":{"name":"alarmClock","version":1,"happenType":"now","tempOffset":0},"props":{"type":"periodicAlarm","hour":$H,"minute":$M,"second":0,"filter":{"day":[0,1,2,3,4,5,6]}},"inputs":{},"outputs":{"output":["$NEXT.input"]}}
 ```
-⚠️ state 节点，`inputs: {}`。连 delay 用 `delay1.input`，连 condition 用 `cond1.trigger`。禁止任何节点的 output 连到 alarmClock。
+⚠️ 事件源，`inputs: {}`。连 delay 用 `delay1.input`，连 condition 用 `cond1.trigger`。禁止任何节点的 output 连到 alarmClock。
 
 ### timeRange - 时间段（state 节点）
 ```json
@@ -239,7 +259,7 @@ metadata:
 {"id":"$ID","type":"register","cfg":{"name":"register","version":1},"props":{},"inputs":{"setTrue":null,"setFalse":null},"outputs":{"output":["$NEXT.trigger"]}}
 ```
 
-### onLoad - 启用时触发（state 节点）
+### onLoad - 启用时触发（事件源）
 ```json
 {"id":"$ID","type":"onLoad","cfg":{"name":"onLoad","version":1},"props":{},"inputs":{},"outputs":{"output":["$NEXT.trigger"]}}
 ```
@@ -265,11 +285,11 @@ metadata:
 {"id":"$ID","type":"varSetString","cfg":{"name":"varSetString","version":1},"props":{"scope":"global","id":"$VAR_ID","elements":[{"type":"const","value":"文本"}]},"inputs":{"input":null},"outputs":{"output":["$NEXT.trigger"]}}
 ```
 
-### deviceInputSetVar - 设备触发赋值（state 节点）
+### deviceInputSetVar - 设备触发赋值（事件源）
 ```json
 {"id":"$ID","type":"deviceInputSetVar","cfg":{"urn":"$URN","name":"deviceInputSetVar","version":1},"props":{"did":"$DID","siid":$SIID,"piid":$PIID,"dtype":"number","scope":"global","id":"$VAR_ID","preload":false},"inputs":{},"outputs":{"output":["$NEXT.trigger"]}}
 ```
-⚠️ state 节点，`inputs: {}`。dtype 用 `"number"` 而非 `"int"`/`"float"`。
+⚠️ 无输入事件源，`inputs: {}`。dtype 用 `"number"` 而非 `"int"`/`"float"`。
 
 ### deviceGetSetVar - 查询设备赋值
 ```json
@@ -277,7 +297,7 @@ metadata:
 ```
 ⚠️ `inputs` 用 `input`。极客版 UI 实测只生成 `outputs.output`，没有 `output2`；不要套用 `deviceGet` 的双输出结构。
 
-### varChange - 变量值更新时触发（state 节点）
+### varChange - 变量值更新时触发（事件源）
 ```json
 {"id":"$ID","type":"varChange","cfg":{"name":"varChange","version":1},"props":{"scope":"global","id":"$VAR_ID","varType":"number","preload":true,"operator":">=","v1":$V1},"inputs":{},"outputs":{"output":["$NEXT.trigger"]}}
 ```
