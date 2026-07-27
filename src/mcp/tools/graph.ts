@@ -21,16 +21,37 @@ import {
   handleError,
   formatGraphListMarkdown,
 } from "../utils.js";
+import { GraphDraftStore } from "./graphDraft.js";
 
 const GraphVariableSchema = z.discriminatedUnion("type", [
   z.object({ id: z.string().regex(/^[a-zA-Z0-9]+$/, "id 必须是纯字母数字"), type: z.literal("number"), value: z.number(), name: z.string().trim().min(1).optional() }),
   z.object({ id: z.string().regex(/^[a-zA-Z0-9]+$/, "id 必须是纯字母数字"), type: z.literal("string"), value: z.string(), name: z.string().trim().min(1).optional() }),
 ]);
 
+const GraphNodeSchema = z.object({
+  id: z.string().regex(/^[0-9a-zA-Z]+$/, "节点 ID 只能包含字母和数字"),
+  type: z.string().min(1),
+  cfg: z.record(z.unknown()),
+  props: z.record(z.unknown()),
+  inputs: z.record(z.unknown()),
+  outputs: z.record(z.array(z.string())),
+});
+
 export function registerGraphTools(
   server: McpServer,
   gatewayManager: GatewayManager
 ): void {
+  const drafts = new GraphDraftStore();
+  const restoreDraftError = (draftId: string, commitToken: string | undefined, error: unknown): string => {
+    const original = handleError(error, "graph_draft_commit");
+    if (!commitToken) return original;
+    try {
+      drafts.failCommit(draftId, commitToken);
+      return original;
+    } catch (restoreError) {
+      return `${original}；草稿状态恢复失败: ${String(restoreError)}`;
+    }
+  };
   server.registerTool(
     "mijia_validate_graph_capabilities",
     {
@@ -194,7 +215,7 @@ export function registerGraphTools(
 - dtype 映射规则（bool/int/float/string）
 - 设备控制常见模式
 
-只有理解这些规则后才能正确构建 nodes 数组。构建完成后，建议先调用 mijia_validate_graph 进行校验，通过后再调用此工具创建规则。
+只有理解这些规则后才能正确构建 nodes 数组。小规则可直接使用本工具；超过 10 个节点的复杂规则应使用 graph_draft 工具分块上传，避免在上下文中重复传输完整节点图。
 
 系统会自动进行节点布局和连接完整性校验。
 
@@ -246,6 +267,141 @@ export function registerGraphTools(
           content: [{ type: "text", text: handleError(error, "create_graph") }],
           isError: true,
         };
+      }
+    }
+  );
+
+  server.registerTool(
+    "mijia_graph_draft_begin",
+    {
+      title: "开始复杂规则草稿",
+      description: "为复杂规则创建内存草稿。超过 10 个节点时优先使用：先开始草稿，再分块追加节点，最后仅用 draftId 提交。草稿 30 分钟后自动过期。",
+      inputSchema: z.object({
+        name: z.string().min(1).describe("规则名称"),
+        variables: z.array(GraphVariableSchema).optional().describe("本规则变量定义；节点引用时 scope 使用 rule"),
+        enable: z.boolean().default(true).describe("创建后是否启用"),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    },
+    async ({ name, variables, enable }) => {
+      try {
+        const draftId = drafts.begin({ name, variables, enable });
+        const output = { draftId, nodeCount: 0, message: "草稿已创建，请分块追加节点" };
+        return { content: [{ type: "text", text: formatJson(output) }], structuredContent: { ...output } };
+      } catch (error) {
+        return { content: [{ type: "text", text: handleError(error, "graph_draft_begin") }], isError: true };
+      }
+    }
+  );
+
+  server.registerTool(
+    "mijia_graph_draft_append",
+    {
+      title: "追加复杂规则节点",
+      description: "向规则草稿追加一小批节点。每个节点只需上传一次；建议每批 5 至 10 个节点，单批不超过 128 KiB。相同节点重试视为成功，内容变化时使用 edit。",
+      inputSchema: z.object({
+        draftId: z.string().uuid().describe("草稿 ID"),
+        nodes: z.array(GraphNodeSchema).min(1).max(25).describe("本批节点，最多 25 个"),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    },
+    async ({ draftId, nodes }) => {
+      try {
+        const result = drafts.append(draftId, nodes);
+        const output = { draftId, ...result };
+        return { content: [{ type: "text", text: formatJson(output) }], structuredContent: { ...output } };
+      } catch (error) {
+        return { content: [{ type: "text", text: handleError(error, "graph_draft_append") }], isError: true };
+      }
+    }
+  );
+
+  server.registerTool(
+    "mijia_graph_draft_edit",
+    {
+      title: "编辑复杂规则草稿",
+      description: "按节点 ID 替换、增加或删除草稿节点。校验失败后只需修正相关节点，不必重传完整规则。",
+      inputSchema: z.object({
+        draftId: z.string().uuid().describe("草稿 ID"),
+        upsert: z.array(GraphNodeSchema).max(25).optional().describe("新增或替换的节点"),
+        removeIds: z.array(z.string()).max(25).optional().describe("要删除的节点 ID"),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+    },
+    async ({ draftId, upsert = [], removeIds = [] }) => {
+      try {
+        const output = drafts.edit(draftId, upsert, removeIds);
+        return { content: [{ type: "text", text: formatJson(output) }], structuredContent: { ...output } };
+      } catch (error) {
+        return { content: [{ type: "text", text: handleError(error, "graph_draft_edit") }], isError: true };
+      }
+    }
+  );
+
+  server.registerTool(
+    "mijia_graph_draft_status",
+    {
+      title: "查看复杂规则草稿状态",
+      description: "返回草稿状态、节点数量、节点 ID、过期时间和已创建的规则 ID，不返回完整节点内容。",
+      inputSchema: z.object({ draftId: z.string().uuid().describe("草稿 ID") }),
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    },
+    async ({ draftId }) => {
+      try {
+        const output = drafts.status(draftId);
+        return { content: [{ type: "text", text: formatJson(output) }], structuredContent: { ...output } };
+      } catch (error) {
+        return { content: [{ type: "text", text: handleError(error, "graph_draft_status") }], isError: true };
+      }
+    }
+  );
+
+  server.registerTool(
+    "mijia_graph_draft_commit",
+    {
+      title: "校验并提交复杂规则草稿",
+      description: "仅传 draftId，服务端会对完整草稿执行结构校验、真实设备能力校验、自动布局和规则创建。成功后保留提交结果供幂等重试，失败时恢复为可编辑状态。",
+      inputSchema: z.object({ draftId: z.string().uuid().describe("草稿 ID") }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    },
+    async ({ draftId }) => {
+      let commitToken: string | undefined;
+      try {
+        gatewayManager.ensureConnected();
+        const commit = drafts.beginCommit(draftId);
+        commitToken = commit.commitToken;
+        if (commit.committedGraphId) {
+          const output = { graphId: commit.committedGraphId, message: "草稿已提交" };
+          return { content: [{ type: "text", text: formatJson(output) }], structuredContent: output };
+        }
+        const result = await createGraph(gatewayManager.gateway!, commit.input!);
+        if (!result.success) {
+          return { content: [{ type: "text", text: restoreDraftError(draftId, commitToken, new Error(result.error)) }], isError: true };
+        }
+        const summary = drafts.completeCommit(draftId, result.data!.graphId, commitToken);
+        const output = { graphId: summary.graphId, nodeCount: summary.nodeCount, message: result.message };
+        return { content: [{ type: "text", text: formatJson(output) }], structuredContent: output };
+      } catch (error) {
+        return { content: [{ type: "text", text: restoreDraftError(draftId, commitToken, error) }], isError: true };
+      }
+    }
+  );
+
+  server.registerTool(
+    "mijia_graph_draft_discard",
+    {
+      title: "丢弃复杂规则草稿",
+      description: "丢弃尚未提交或已提交的临时草稿记录，不删除已创建的网关规则或变量。",
+      inputSchema: z.object({ draftId: z.string().uuid().describe("草稿 ID") }),
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+    },
+    async ({ draftId }) => {
+      try {
+        const discarded = drafts.delete(draftId);
+        const output = { draftId, discarded };
+        return { content: [{ type: "text", text: formatJson(output) }], structuredContent: output };
+      } catch (error) {
+        return { content: [{ type: "text", text: handleError(error, "graph_draft_discard") }], isError: true };
       }
     }
   );

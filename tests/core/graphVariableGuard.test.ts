@@ -1,7 +1,31 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { GatewayClient } from '../../src/core/gateway/client';
-import { createGraph, deleteGraph, updateGraph } from '../../src/core/tools/graph';
+import { createGraph, deleteGraph, getGraph, updateGraph } from '../../src/core/tools/graph';
+
+test('规则详情缺少 cfg 时使用列表元数据补齐', async () => {
+    const gateway = {
+        async callApi(method: string): Promise<unknown> {
+            if (method === 'getGraph') return { id: '123', nodes: [] };
+            if (method === 'getGraphList') return [{
+                id: '123',
+                enable: true,
+                userData: {
+                    name: '补齐规则',
+                    lastUpdateTime: 42,
+                    transform: { x: 1, y: 2, scale: 1, rotate: 0 },
+                },
+            }];
+            throw new Error(`意外的方法 ${method}`);
+        },
+    } as unknown as GatewayClient;
+
+    const result = await getGraph(gateway, '123');
+
+    assert.equal(result.success, true);
+    assert.equal(result.success ? result.data?.cfg.enable : false, true);
+    assert.equal(result.success ? result.data?.cfg.userData.name : '', '补齐规则');
+});
 
 test('创建规则时拒绝未登记变量且不调用 setGraph', async () => {
     const calls: string[] = [];
@@ -51,6 +75,138 @@ test('创建规则使用极客版本规则变量兼容的纯数字 ID', async ()
     assert.equal(result.success, true);
     assert.match(result.success ? result.data!.graphId : '', /^\d+$/);
     assert.match((graph as { id: string }).id, /^\d+$/);
+});
+
+test('指定规则 ID 的完整图已存在时校正规则配置且不重复创建', async () => {
+    const calls: string[] = [];
+    const existing = { id: '1234567890123', nodes: [{ id: 'start', type: 'onLoad', cfg: { name: 'onLoad', version: 1 }, props: {}, inputs: {}, outputs: { output: [] } }], cfg: { enable: true } };
+    const gateway = {
+        async callApi(method: string): Promise<unknown> {
+            calls.push(method);
+            if (method === 'getGraphList') return [{ id: '1234567890123' }];
+            if (method === 'getVarScopeList') return { scopes: [] };
+            if (method === 'getGraph') return existing;
+            if (method === 'setGraph') return undefined;
+            throw new Error(`意外的方法 ${method}`);
+        },
+    } as unknown as GatewayClient;
+
+    const result = await createGraph(gateway, {
+        graphId: '1234567890123',
+        name: 'Idempotent Graph',
+        nodes: [{ id: 'start', type: 'onLoad', cfg: {}, props: {}, inputs: {}, outputs: { output: [] } }],
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(result.success ? result.data?.graphId : '', '1234567890123');
+    assert.deepEqual(calls, ['getGraphList', 'getVarScopeList', 'getGraph', 'setGraph']);
+});
+
+test('固定规则 ID 遇到 setup 外壳时补齐变量并写入正式图', async () => {
+    const calls: Array<{ method: string; input: any }> = [];
+    const variables: Record<string, { type: string }> = { existing: { type: 'number' } };
+    const gateway = {
+        async callApi(method: string, input: any): Promise<unknown> {
+            calls.push({ method, input });
+            if (method === 'getGraphList') return [{ id: '1234567890123' }];
+            if (method === 'getVarScopeList') return { scopes: ['R1234567890123'] };
+            if (method === 'getGraph') return { id: '1234567890123', nodes: [{ id: 'setup', type: 'onLoad', cfg: { name: 'onLoad', version: 1 }, props: {}, inputs: {}, outputs: { output: [] } }], cfg: { enable: false } };
+            if (method === 'getVarList') return variables;
+            if (method === 'createVar') variables[input.id] = { type: input.type };
+            return undefined;
+        },
+    } as unknown as GatewayClient;
+
+    const result = await createGraph(gateway, {
+        graphId: '1234567890123',
+        name: 'Resume Shell',
+        variables: [
+            { id: 'existing', type: 'number', value: 0 },
+            { id: 'missing', type: 'number', value: 0 },
+        ],
+        nodes: [{ id: 'start', type: 'onLoad', cfg: {}, props: {}, inputs: {}, outputs: { output: [] } }],
+    });
+
+    assert.equal(result.success, true);
+    assert.deepEqual(calls.filter((call) => call.method === 'createVar').map((call) => call.input.id), ['missing']);
+    assert.equal(calls.filter((call) => call.method === 'setGraph').length, 1);
+});
+
+test('恢复 setup 外壳时兼容数组形式变量列表', async () => {
+    const created: string[] = [];
+    const gateway = {
+        async callApi(method: string, input: any): Promise<unknown> {
+            if (method === 'getGraphList') return [{ id: '1234567890123' }];
+            if (method === 'getVarScopeList') return { scopes: ['R1234567890123'] };
+            if (method === 'getGraph') return { id: '1234567890123', nodes: [{ id: 'setup', type: 'onLoad', cfg: { name: 'onLoad', version: 1 }, props: {}, inputs: {}, outputs: { output: [] } }], cfg: { enable: false } };
+            if (method === 'getVarList') return [{ id: 'existing', type: 'number' }];
+            if (method === 'createVar') created.push(input.id);
+            return undefined;
+        },
+    } as unknown as GatewayClient;
+
+    const result = await createGraph(gateway, {
+        graphId: '1234567890123',
+        name: 'Resume Array Variables',
+        variables: [
+            { id: 'existing', type: 'number', value: 0 },
+            { id: 'missing', type: 'number', value: 0 },
+        ],
+        nodes: [{ id: 'start', type: 'onLoad', cfg: {}, props: {}, inputs: {}, outputs: { output: [] } }],
+    });
+
+    assert.equal(result.success, true);
+    assert.deepEqual(created, ['missing']);
+});
+
+test('恢复已有外壳失败时只清理本次补建变量', async () => {
+    const deletes: any[] = [];
+    let setGraphCalls = 0;
+    const gateway = {
+        async callApi(method: string, input: any): Promise<unknown> {
+            if (method === 'getGraphList') return [{ id: '1234567890123' }];
+            if (method === 'getVarScopeList') return { scopes: ['R1234567890123'] };
+            if (method === 'getGraph') return { id: '1234567890123', nodes: [{ id: 'setup', type: 'onLoad', cfg: { name: 'onLoad', version: 1 }, props: {}, inputs: {}, outputs: { output: [] } }], cfg: { enable: false } };
+            if (method === 'getVarList') return { existing: { type: 'number' }, missing: { type: 'number' } };
+            if (method === 'setGraph' && ++setGraphCalls === 1) throw new Error('最终写图失败');
+            if (method === 'deleteVar') deletes.push(input);
+            return undefined;
+        },
+    } as unknown as GatewayClient;
+
+    const result = await createGraph(gateway, {
+        graphId: '1234567890123',
+        name: 'Resume Cleanup',
+        variables: [
+            { id: 'existing', type: 'number', value: 0 },
+            { id: 'missing', type: 'number', value: 0 },
+            { id: 'newvar', type: 'number', value: 0 },
+        ],
+        nodes: [{ id: 'start', type: 'onLoad', cfg: {}, props: {}, inputs: {}, outputs: { output: [] } }],
+    });
+
+    assert.equal(result.success, false);
+    assert.deepEqual(deletes, [{ scope: 'R1234567890123', id: 'newvar' }]);
+});
+
+test('固定规则 ID 被其他规则占用时拒绝覆盖', async () => {
+    const gateway = {
+        async callApi(method: string): Promise<unknown> {
+            if (method === 'getGraphList') return [{ id: '1234567890123' }];
+            if (method === 'getVarScopeList') return { scopes: [] };
+            if (method === 'getGraph') return { id: '1234567890123', nodes: [{ id: 'other', type: 'onLoad' }], cfg: { enable: true } };
+            return undefined;
+        },
+    } as unknown as GatewayClient;
+
+    const result = await createGraph(gateway, {
+        graphId: '1234567890123',
+        name: 'Collision',
+        nodes: [{ id: 'start', type: 'onLoad', cfg: {}, props: {}, inputs: {}, outputs: { output: [] } }],
+    });
+
+    assert.equal(result.success, false);
+    assert.match('error' in result ? result.error : '', /占用/);
 });
 
 test('更新规则保留传入的卡片坐标和尺寸', async () => {
@@ -108,6 +264,23 @@ test('更新规则未指定 enable 时保留禁用状态', async () => {
 
     assert.equal(result.success, true);
     assert.equal(saved?.cfg.enable, false);
+});
+
+test('更新旧规则缺少 cfg 时从列表保留启用状态', async () => {
+    let saved: { cfg: { enable: boolean } } | undefined;
+    const gateway = {
+        async callApi(method: string, input: unknown): Promise<unknown> {
+            if (method === 'getGraph') return { id: '1', nodes: [] };
+            if (method === 'getGraphList') return [{ id: '1', enable: true, userData: { name: 'Legacy' } }];
+            if (method === 'setGraph') saved = input as typeof saved;
+            return undefined;
+        },
+    } as unknown as GatewayClient;
+
+    const result = await updateGraph(gateway, '1', { name: 'Still Enabled' });
+
+    assert.equal(result.success, true);
+    assert.equal(saved?.cfg.enable, true);
 });
 
 test('创建规则一次登记本规则变量并替换 rule 作用域', async () => {
