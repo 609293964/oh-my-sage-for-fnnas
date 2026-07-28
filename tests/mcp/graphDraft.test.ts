@@ -27,6 +27,18 @@ test('复杂规则草稿分块追加并保留节点顺序', () => withStore((dra
     assert.deepEqual(drafts.status(id).nodeIds, ['a', 'b', 'c']);
 }));
 
+test('并发进程共用草稿文件时不会互相覆盖', () => withStore((first, file) => {
+    const second = new GraphDraftStore(file);
+    const firstId = first.begin({ name: 'first' });
+    const secondId = second.begin({ name: 'second' });
+    first.append(firstId, [node('a')]);
+    second.append(secondId, [node('b')]);
+
+    const restored = new GraphDraftStore(file);
+    assert.deepEqual(restored.status(firstId).nodeIds, ['a']);
+    assert.deepEqual(restored.status(secondId).nodeIds, ['b']);
+}));
+
 test('相同节点重试幂等，内容变化时要求编辑', () => withStore((drafts) => {
     const id = drafts.begin({ name: 'test' });
     drafts.append(id, [node('same')]);

@@ -38,6 +38,7 @@ function clone<T>(value: T): T {
 export class GraphDraftStore {
     private readonly drafts = new Map<string, GraphDraft>();
     private readonly activeCommits = new Map<string, string>();
+    private readonly removed = new Set<string>();
     private readonly cleanupTimer: NodeJS.Timeout;
 
     constructor(private readonly storePath = DEFAULT_STORE_PATH) {
@@ -151,6 +152,7 @@ export class GraphDraftStore {
 
     delete(id: string): boolean {
         const deleted = this.drafts.delete(id);
+        this.removed.add(id);
         if (deleted) this.persist();
         return deleted;
     }
@@ -192,27 +194,42 @@ export class GraphDraftStore {
         for (const [id, draft] of this.drafts) {
             if (draft.updatedAt < cutoff) {
                 this.drafts.delete(id);
+                this.removed.add(id);
                 changed = true;
             }
         }
         if (changed) this.persist();
     }
 
-    private load(): void {
+    private readStore(): Record<string, GraphDraft> {
         try {
-            const parsed = JSON.parse(fs.readFileSync(this.storePath, 'utf8')) as Record<string, GraphDraft>;
-            for (const [id, draft] of Object.entries(parsed)) this.drafts.set(id, draft);
-            this.prune();
+            return JSON.parse(fs.readFileSync(this.storePath, 'utf8')) as Record<string, GraphDraft>;
         } catch (error) {
-            if ((error as NodeJS.ErrnoException).code !== 'ENOENT') console.error('[GraphDraft] 恢复草稿失败', error);
+            if ((error as NodeJS.ErrnoException).code !== 'ENOENT') console.error('[GraphDraft] 读取草稿失败', error);
+            return {};
+        }
+    }
+
+    private load(): void {
+        const cutoff = Date.now() - DRAFT_TTL_MS;
+        for (const [id, draft] of Object.entries(this.readStore())) {
+            if (draft.updatedAt >= cutoff) this.drafts.set(id, draft);
         }
     }
 
     private persist(): void {
         const directory = path.dirname(this.storePath);
         fs.mkdirSync(directory, { recursive: true });
+        // ponytail: last-write-wins merge, switch to a file lock if drafts ever need cross-process edits of the same id
+        const cutoff = Date.now() - DRAFT_TTL_MS;
+        const merged: Record<string, GraphDraft> = {};
+        for (const [id, draft] of Object.entries(this.readStore())) {
+            if (this.removed.has(id) || this.drafts.has(id) || draft.updatedAt < cutoff) continue;
+            merged[id] = draft;
+        }
+        for (const [id, draft] of this.drafts) merged[id] = draft;
         const temporary = `${this.storePath}.${process.pid}.tmp`;
-        fs.writeFileSync(temporary, JSON.stringify(Object.fromEntries(this.drafts)));
+        fs.writeFileSync(temporary, JSON.stringify(merged));
         fs.renameSync(temporary, this.storePath);
     }
 }
