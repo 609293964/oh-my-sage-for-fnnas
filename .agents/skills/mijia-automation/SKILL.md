@@ -57,6 +57,12 @@ video → ui-sample → graph-diff → local-tested → gateway-roundtrip → ru
 - `createVar` 的显示名称必须放在 `userData: { name }`，不能传顶层 `name`。缺少 `userData.name` 时变量虽可按 ID 读取，但极客版 UI 的变量选择器不会显示它。
 - 删除变量前检查所有规则引用；删除是不可恢复操作。
 
+### 本规则变量的作用域名与创建时机
+
+- 作用域名 = `R` + **规则 ID 的数字部分**，去掉 `graph_` 前缀。例：规则 `graph_1700000000000` → 作用域 `R1700000000000`；规则 `1700000000000` → `R1700000000000`。可用 `mijia_call_api getVarScopeList` 核对。
+- 节点里写 `"scope": "rule"` 的自动替换**只发生在** `mijia_create_graph` 和 `mijia_graph_draft_begin`（经由 `variables` 参数）。
+- **`mijia_update_graph` 没有 `variables` 参数**。给已有规则新增变量时，必须先单独调用 `mijia_create_variable` 并显式传真实作用域字符串，节点里也要写真实作用域，不能写 `"rule"`。
+
 ### 工具缺失或写入失败时
 
 按以下顺序判断，不要直接宣布“网关无法读写变量”：
@@ -300,6 +306,7 @@ MCP 模式下**创建**超过 10 个节点的复杂规则时，不要调用两�
 ```json
 {"id":"$ID","type":"register","cfg":{"name":"register","version":1},"props":{},"inputs":{"setTrue":null,"setFalse":null},"outputs":{"output":["$NEXT.trigger"]}}
 ```
+⚠️ `outputs.output` 是**上升沿触发**（已实测）：只在 false → true 那一刻发一次信号；`setFalse` 不发，重复 `setTrue` 也不发。接 `condition.condition` 时当状态读，接 `xxx.trigger` 时当上升沿事件用。需要「变 false 时也执行动作」必须另引事件链。
 
 ### onLoad - 启用时触发（事件源）
 ```json
