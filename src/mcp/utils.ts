@@ -103,6 +103,7 @@ export function formatDeviceListMarkdown(devices: Array<{
 export function formatDeviceDetailsMarkdown(devices: Array<{
   name: string;
   did: string;
+  found?: boolean;
   model?: string;
   modelName?: string;
   online?: boolean;
@@ -122,6 +123,15 @@ export function formatDeviceDetailsMarkdown(devices: Array<{
   const lines = ["## 设备详情", ""];
 
   for (const device of devices) {
+    if (device.found === false) {
+      lines.push(`### ${device.did}`);
+      lines.push("- ⚠️ 网关设备表中不存在该设备ID，无法读取任何能力");
+      lines.push("- 这不是「设备离线」：离线设备仍会返回名称、型号和 MIOT 能力");
+      lines.push("- 请核对设备ID是否正确，或该设备是否已从网关移除");
+      lines.push("");
+      continue;
+    }
+
     lines.push(`### ${device.name} (${device.did})`);
     lines.push(`- 型号: ${device.model || "未知"} - ${device.modelName || "未知"}`);
     lines.push(`- 状态: ${device.online ? "在线 ✅" : "离线 ❌"}`);

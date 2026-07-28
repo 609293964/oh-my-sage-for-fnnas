@@ -96,11 +96,13 @@ Args:
 
 Returns:
   - devices: 设备详情列表
+  - notFound: 网关设备表中不存在的设备ID列表（为空表示全部命中）
   - 包含 properties(所有字段约束), events(事件及参数), triggers, actions(含输入参数), readable
+  - 每个设备含 found 字段：false 表示该ID在网关设备表中不存在，其余字段为占位空值
 
 Error Handling:
   - "网关未连接" - 请先调用 mijia_auth
-  - "设备不存在" - 指定的设备ID不存在`,
+  - 设备ID不存在时不报错，而是在该设备的 found=false 并列入 notFound；请勿把它当作「设备离线」`,
       inputSchema: z.object({
         dids: z.array(z.string()).min(1).describe("设备ID数组"),
         response_format: ResponseFormatSchema.optional().default("markdown").describe("输出格式"),
@@ -125,7 +127,8 @@ Error Handling:
         }
 
         const devices = result.data ?? [];
-        const output = { devices, count: devices.length };
+        const notFound = devices.filter((device) => device.found === false).map((device) => device.did);
+        const output = { devices, count: devices.length, notFound };
 
         if (response_format === "json") {
           return {

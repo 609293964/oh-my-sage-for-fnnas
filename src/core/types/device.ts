@@ -52,6 +52,8 @@ export interface MiotActionCapability {
 /** 设备详情信息 */
 export interface DeviceInfo {
     did: string;
+    /** 该 did 是否存在于网关设备表。false 时其余字段均为占位空值，不代表设备离线 */
+    found: boolean;
     name: string;
     model: string;
     modelName: string;
