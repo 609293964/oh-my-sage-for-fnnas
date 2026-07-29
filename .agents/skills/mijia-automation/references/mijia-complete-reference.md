@@ -423,7 +423,7 @@ MIOT Spec 使用的 format 值与网关要求的 dtype 不同，需要转换：
 | did | string | 设备ID（来自 getDevList 的 key） |
 | siid | integer | 服务ID（属性所属的服务） |
 | piid | integer | 属性ID（与 eiid 二选一） |
-| preload | boolean | 必须为 `false` |
+| preload | boolean | `false`=只在属性变化时触发；`true`=规则启用瞬间也按当前值评估一次（已实机验证） |
 | dtype | string | `"boolean"` / `"int"` / `"float"` / `"string"`（由属性 format 决定） |
 | operator | string | 操作符，取决于 dtype（见下表） |
 | v1 | any | 比较值，类型与 dtype 匹配 |
@@ -482,7 +482,7 @@ MIOT Spec 使用的 format 值与网关要求的 dtype 不同，需要转换：
 | did | string | 设备ID |
 | siid | integer | 服务ID |
 | eiid | integer | 事件ID（与 piid 二选一） |
-| preload | boolean | 必须为 `false` |
+| preload | boolean | 同属性模式；事件模式通常用 `false` |
 | arguments | array | 事件参数过滤（可选） |
 
 **arguments 元素结构**：
@@ -1054,8 +1054,20 @@ deviceInput → condition1
 }
 ```
 
-- `setTrue` 触发时状态设为 true，触发 output
-- `setFalse` 触发时状态设为 false，触发 output
+- `setTrue` 触发时状态设为 true
+- `setFalse` 触发时状态设为 false
+
+**⚠️ `outputs.output` 是上升沿触发（已实机验证）**：只在状态由 false 变为 true 的那一刻发出一次信号。
+
+| 操作 | 是否发出信号 |
+|------|-------------|
+| `setFalse`（true → false） | 不发 |
+| `setTrue`（false → true） | **发一次** |
+| `setTrue`（true → true，重复） | 不发 |
+
+因此 `register.output` 有两种用法：接 `condition.condition` 当**状态**读；接 `xxx.trigger` 当**上升沿事件**用。
+
+「有动静 → setFalse；空闲 N 秒 → setTrue → 关灯」是正确写法，`setFalse` 不会误触发关灯动作。需要「变 false 时也执行动作」必须另引事件链，不能依赖 `register.output`。
 
 ---
 
