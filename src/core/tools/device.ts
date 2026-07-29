@@ -182,12 +182,13 @@ export async function getDevice(gateway: GatewayClient, dids: string[]): Promise
         for (const did of dids) {
             const device = devList[did];
             if (!device) {
-                results.push({ did, name: '', model: '', modelName: '', online: false, roomName: '', urn: '' });
+                results.push({ did, found: false, name: '', model: '', modelName: '', online: false, roomName: '', urn: '' });
                 continue;
             }
 
             const info: DeviceInfo = {
                 did,
+                found: true,
                 name: device.name,
                 model: device.model,
                 modelName: device.modelName,
