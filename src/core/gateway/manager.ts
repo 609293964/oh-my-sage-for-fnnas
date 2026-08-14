@@ -28,7 +28,7 @@ export function createGatewayManager(): GatewayManager {
         async connect(passcode: string, gatewayUrl?: string): Promise<void> {
             const url = gatewayUrl || process.env.GATEWAY_URL;
             if (!url) {
-                throw new Error('未配置网关地址：请在 mijia_auth 的 gateway_url 参数中提供网关地址，或在 MCP 配置里设置 GATEWAY_URL 环境变量');
+                throw new Error('未配置网关地址：请在 fnOS 应用设置中填写网关 IP，或设置 GATEWAY_URL 环境变量');
             }
 
             if (gateway) {

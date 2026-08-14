@@ -6,8 +6,27 @@
 import {z} from 'zod';
 import {tool} from 'ai';
 import {jsonSchema, type Schema, zodSchema} from '@ai-sdk/ui-utils';
-import {GatewayClient} from '@/core';
-import {callGatewayApi, getDevices, getDevice, getGraphs, getGraph, createGraph, updateGraph, deleteGraph, toggleGraph, getVariables, setVariable, createVariable, deleteVariable, getVariableValue, getVariableConfig, validateGraph, validateGraphCapabilitiesWithGateway, layoutNodes} from '@/core';
+import {
+    callGatewayApi,
+    createGraph,
+    createVariable,
+    deleteGraph,
+    deleteVariable,
+    getDevice,
+    getDevices,
+    getGraph,
+    getGraphs,
+    getVariableConfig,
+    getVariables,
+    getVariableValue,
+    layoutNodes,
+    setVariable,
+    toggleGraph,
+    updateGraph,
+    validateGraph,
+    validateGraphCapabilitiesWithGateway,
+    type GatewayClient,
+} from '@/core';
 import {getSkillByName, formatSkillContent, readSkillFile, getSkillCatalog} from '../skills/loader';
 
 function patchArrayItems(schema: unknown): unknown {
@@ -36,7 +55,7 @@ function compatibleParameters<OBJECT>(
     const baseSchema = zodSchema(schema);
 
     return jsonSchema<OBJECT>(patchArrayItems(baseSchema.jsonSchema) as any, {
-        validate: value => {
+        validate: (value: unknown) => {
             const result = schema.safeParse(value);
             return result.success
                 ? {success: true, value: result.data}
