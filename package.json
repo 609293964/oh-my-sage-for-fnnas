@@ -8,7 +8,8 @@
     "build:fpk": "npm run build && npm run prepare:fpk && fnpack build -d fnnas.mijia-geek-ai",
     "start": "next start",
     "lint": "next lint",
-    "test": "npx tsx src/test.ts"
+    "test": "npx tsx src/test.ts",
+    "test:unit": "tsx --test tests/**/*.test.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^0.0.51",

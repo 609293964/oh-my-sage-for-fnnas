@@ -1,6 +1,6 @@
 /**
  * Session API
- * 管理会话列表
+ * 管理 Session 列表
  */
 
 import {NextRequest, NextResponse} from 'next/server';
@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/sessions
- * 获取 session 列表
+ * 获取 Session 列表
  */
 export async function GET() {
     try {
@@ -23,10 +23,10 @@ export async function GET() {
             sessions,
         });
     } catch (error) {
-        console.error('获取 session 列表失败:', error);
+        console.error('获取 Session 列表失败:', error);
         return NextResponse.json({
             success: false,
-            error: '获取 session 列表失败',
+            error: '获取 Session 列表失败',
             message: error instanceof Error ? error.message : '未知错误',
             sessions: [],
         }, {status: 500});
@@ -35,7 +35,7 @@ export async function GET() {
 
 /**
  * POST /api/sessions
- * 创建新 session
+ * 创建新 Session
  */
 export async function POST(request: NextRequest) {
     try {
@@ -50,10 +50,10 @@ export async function POST(request: NextRequest) {
             session,
         });
     } catch (error) {
-        console.error('创建 session 失败:', error);
+        console.error('创建 Session 失败:', error);
         return NextResponse.json({
             success: false,
-            error: '创建 session 失败',
+            error: '创建 Session 失败',
             message: error instanceof Error ? error.message : '未知错误',
         }, {status: 500});
     }
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
 
 /**
  * DELETE /api/sessions?id=xxx
- * 删除 session
+ * 删除 Session
  */
 export async function DELETE(request: NextRequest) {
     try {
@@ -71,7 +71,7 @@ export async function DELETE(request: NextRequest) {
         if (!id) {
             return NextResponse.json({
                 success: false,
-                error: '缺少 session ID',
+                error: '缺少 Session ID',
             }, {status: 400});
         }
 
@@ -83,10 +83,10 @@ export async function DELETE(request: NextRequest) {
             message: 'Session 已删除',
         });
     } catch (error) {
-        console.error('删除 session 失败:', error);
+        console.error('删除 Session 失败:', error);
         return NextResponse.json({
             success: false,
-            error: '删除 session 失败',
+            error: '删除 Session 失败',
             message: error instanceof Error ? error.message : '未知错误',
         }, {status: 500});
     }

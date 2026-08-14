@@ -105,6 +105,48 @@ function readOptionalNodes(body: Record<string, unknown>): GraphNode[] | undefin
     return readRequiredNodes(body);
 }
 
+function readOptionalVariables(body: Record<string, unknown>): NonNullable<CreateGraphInput['variables']> | undefined {
+    if (!('variables' in body)) return undefined;
+
+    const value = body.variables;
+    if (!Array.isArray(value)) {
+        throw new ApiError('variables 必须是数组');
+    }
+
+    return value.map((item, index) => {
+        if (!isPlainObject(item)) {
+            throw new ApiError(`variables[${index}] 必须是对象`);
+        }
+
+        const id = item.id;
+        const type = item.type;
+        const initialValue = item.value;
+        const name = item.name;
+
+        if (typeof id !== 'string' || !/^[a-zA-Z0-9]+$/.test(id)) {
+            throw new ApiError(`variables[${index}].id 只能包含英文字母和数字`);
+        }
+        if (type !== 'number' && type !== 'string') {
+            throw new ApiError(`variables[${index}].type 必须是 number 或 string`);
+        }
+        if (name !== undefined && (typeof name !== 'string' || !name.trim())) {
+            throw new ApiError(`variables[${index}].name 必须是非空字符串`);
+        }
+
+        if (type === 'number') {
+            if (typeof initialValue !== 'number') {
+                throw new ApiError(`variables[${index}].value 必须与 type 匹配`);
+            }
+            return {id, type, value: initialValue, ...(typeof name === 'string' ? {name: name.trim()} : {})};
+        }
+
+        if (typeof initialValue !== 'string') {
+            throw new ApiError(`variables[${index}].value 必须与 type 匹配`);
+        }
+        return {id, type, value: initialValue, ...(typeof name === 'string' ? {name: name.trim()} : {})};
+    });
+}
+
 function statusFromToolError(error: string): number {
     if (error.includes('不存在')) return 404;
     if (error.includes('校验失败') || error.includes('缺少') || error.includes('必须')) return 400;
@@ -196,9 +238,10 @@ export async function POST(request: NextRequest) {
         const body = await readBody(request);
         const name = readRequiredString(body, 'name');
         const nodes = readRequiredNodes(body);
+        const variables = readOptionalVariables(body);
         const enable = readOptionalBoolean(body, 'enable') ?? true;
 
-        const result = await createGraph(gateway, {name, nodes, enable});
+        const result = await createGraph(gateway, {name, nodes, variables, enable});
         if (!result.success) return toolErrorResponse(result);
 
         return NextResponse.json({
@@ -299,7 +342,7 @@ export async function DELETE(request: NextRequest) {
 
         return NextResponse.json({
             success: true,
-            message: result.message,
+            message: result.message || '规则已删除',
         });
     } catch (error) {
         return routeErrorResponse(error, '删除规则失败');

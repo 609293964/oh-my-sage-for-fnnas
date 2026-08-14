@@ -7,7 +7,7 @@ import {z} from 'zod';
 import {tool} from 'ai';
 import {jsonSchema, type Schema, zodSchema} from '@ai-sdk/ui-utils';
 import {GatewayClient} from '@/core';
-import {getDevices, getDevice, getGraphs, getGraph, createGraph, updateGraph, deleteGraph, toggleGraph, getVariables, setVariable, validateGraph, layoutNodes} from '@/core';
+import {callGatewayApi, getDevices, getDevice, getGraphs, getGraph, createGraph, updateGraph, deleteGraph, toggleGraph, getVariables, setVariable, createVariable, deleteVariable, getVariableValue, getVariableConfig, validateGraph, validateGraphCapabilitiesWithGateway, layoutNodes} from '@/core';
 import {getSkillByName, formatSkillContent, readSkillFile, getSkillCatalog} from '../skills/loader';
 
 function patchArrayItems(schema: unknown): unknown {
@@ -109,6 +109,18 @@ export function createCoreTools(gateway: GatewayClient) {
             },
         }),
 
+        call_gateway_api: defineTool({
+            description: '仅在用户明确要求排障、发现网关接口或查询未被专用工具覆盖的只读数据时使用。只能调用已验证的只读 API；写入、删除和未知方法会被拒绝。',
+            parameters: z.object({
+                method: z.string().describe('已验证的只读网关 API 方法名，例如 getApiList、getLog、getVarScopeList'),
+                params: z.record(z.unknown()).default({}).describe('API 参数对象'),
+                timeout: z.number().int().min(1000).max(10000).default(10000).describe('超时时间（毫秒）'),
+            }),
+            execute: async ({method, params, timeout}) => {
+                return callGatewayApi(gateway, method, params, timeout);
+            },
+        }),
+
         get_graphs: defineTool({
             description: '获取所有自动化规则列表',
             parameters: z.object({}),
@@ -132,10 +144,14 @@ export function createCoreTools(gateway: GatewayClient) {
             parameters: z.object({
                 name: z.string().describe('规则名称'),
                 nodes: z.array(z.any()).describe('节点列表'),
+                variables: z.array(z.discriminatedUnion('type', [
+                    z.object({id: z.string().regex(/^[a-zA-Z0-9]+$/), type: z.literal('number'), value: z.number(), name: z.string().trim().min(1).optional()}),
+                    z.object({id: z.string().regex(/^[a-zA-Z0-9]+$/), type: z.literal('string'), value: z.string(), name: z.string().trim().min(1).optional()}),
+                ])).optional().describe('本规则变量定义；节点引用时 scope 使用 rule'),
                 enable: z.boolean().optional().describe('是否启用'),
             }),
-            execute: async ({name, nodes, enable = true}) => {
-                return createGraph(gateway, {name, nodes, enable});
+            execute: async ({name, nodes, variables, enable = true}) => {
+                return createGraph(gateway, {name, nodes, variables, enable});
             },
         }),
 
@@ -195,6 +211,38 @@ export function createCoreTools(gateway: GatewayClient) {
             },
         }),
 
+        create_variable: defineTool({
+            description: '创建自动化变量',
+            parameters: z.object({id: z.string().regex(/^[a-zA-Z0-9]+$/), type: z.enum(['number', 'string']), value: z.union([z.number(), z.string()]), name: z.string().trim().min(1).optional(), scope: z.string().optional()}),
+            execute: async ({id, type, value, name, scope = 'global'}) => {
+                if (typeof value !== type) return {success: false, error: 'value 必须与 type 匹配'};
+                return createVariable(gateway, id, type, value, name, scope);
+            },
+        }),
+
+        delete_variable: defineTool({
+            description: '删除自动化变量；仍被规则引用时拒绝删除',
+            parameters: z.object({
+                id: z.string().describe('变量 ID'),
+                scope: z.string().optional().describe('变量作用域'),
+            }),
+            execute: async ({id, scope = 'global'}) => {
+                return deleteVariable(gateway, id, scope);
+            },
+        }),
+
+        get_variable_value: defineTool({
+            description: '获取变量当前值',
+            parameters: z.object({id: z.string(), scope: z.string().optional()}),
+            execute: async ({id, scope = 'global'}) => getVariableValue(gateway, id, scope),
+        }),
+
+        get_variable_config: defineTool({
+            description: '获取变量配置',
+            parameters: z.object({id: z.string(), scope: z.string().optional()}),
+            execute: async ({id, scope = 'global'}) => getVariableConfig(gateway, id, scope),
+        }),
+
         validate_graph: defineTool({
             description: '校验规则连接完整性',
             parameters: z.object({
@@ -237,10 +285,18 @@ export function createCoreTools(gateway: GatewayClient) {
             },
         }),
 
-        activate_skill: defineTool({
-            description: '激活指定的 skill',
+        validate_graph_capabilities: defineTool({
+            description: '根据真实 MIOT Spec 校验规则中的设备能力和变量引用',
             parameters: z.object({
-                name: z.string().describe('skill 名称'),
+                graph: z.object({id: z.string(), nodes: z.array(z.any()), cfg: z.any()}),
+            }),
+            execute: async ({graph}) => validateGraphCapabilitiesWithGateway(gateway, graph as any),
+        }),
+
+        activate_skill: defineTool({
+            description: '激活指定的 Skill',
+            parameters: z.object({
+                name: z.string().describe('Skill 名称'),
             }),
             execute: async ({name}) => {
                 const skill = getSkillByName(name);
@@ -249,7 +305,7 @@ export function createCoreTools(gateway: GatewayClient) {
                     const available = catalog.map(s => s.name).join(', ');
                     return {
                         success: false,
-                        error: `Skill "${name}" 不存在。可用的 skills: ${available}`,
+                        error: `Skill "${name}" 不存在。可用的 Skills: ${available}`,
                     };
                 }
 
@@ -258,16 +314,16 @@ export function createCoreTools(gateway: GatewayClient) {
                     skill: skill.name,
                     content: formatSkillContent(skill),
                     resources: skill.resources,
-                    message: `已激活 skill: ${skill.name}`,
+                    message: `已激活 Skill: ${skill.name}`,
                 };
             },
         }),
 
         read_skill_file: defineTool({
-            description: '读取 skill 目录中的资源文件',
+            description: '读取 Skill 目录中的资源文件',
             parameters: z.object({
-                skillName: z.string().describe('skill 名称'),
-                filePath: z.string().describe('相对于 skill 目录的文件路径'),
+                skillName: z.string().describe('Skill 名称'),
+                filePath: z.string().describe('相对于 Skill 目录的文件路径'),
             }),
             execute: async ({skillName, filePath}) => {
                 const content = readSkillFile(skillName, filePath);

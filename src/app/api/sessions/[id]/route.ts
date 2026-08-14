@@ -1,6 +1,6 @@
 /**
  * Session 详情 API
- * 获取和更新单个 session
+ * 获取和更新单个 Session
  */
 
 import {NextRequest, NextResponse} from 'next/server';
@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/sessions/[id]
- * 获取 session 详情和消息历史
+ * 获取 Session 详情和消息历史
  */
 export async function GET(
     request: NextRequest,
@@ -37,10 +37,10 @@ export async function GET(
             messages,
         });
     } catch (error) {
-        console.error('获取 session 详情失败:', error);
+        console.error('获取 Session 详情失败:', error);
         return NextResponse.json({
             success: false,
-            error: '获取 session 详情失败',
+            error: '获取 Session 详情失败',
             message: error instanceof Error ? error.message : '未知错误',
         }, {status: 500});
     }
@@ -48,7 +48,7 @@ export async function GET(
 
 /**
  * PATCH /api/sessions/[id]
- * 更新 session（如修改标题）
+ * 更新 Session（如修改标题）
  */
 export async function PATCH(
     request: NextRequest,
@@ -89,10 +89,10 @@ export async function PATCH(
             message: 'Session 已更新',
         });
     } catch (error) {
-        console.error('更新 session 失败:', error);
+        console.error('更新 Session 失败:', error);
         return NextResponse.json({
             success: false,
-            error: '更新 session 失败',
+            error: '更新 Session 失败',
             message: error instanceof Error ? error.message : '未知错误',
         }, {status: 500});
     }
@@ -100,7 +100,7 @@ export async function PATCH(
 
 /**
  * POST /api/sessions/[id]
- * 支持 action: truncate - 截断 session 消息到指定位置
+ * 支持 action: truncate - 截断 Session 消息到指定位置
  */
 export async function POST(
     request: NextRequest,
@@ -161,7 +161,7 @@ export async function POST(
 
 /**
  * DELETE /api/sessions/[id]
- * 删除 session
+ * 删除 Session
  */
 export async function DELETE(
     request: NextRequest,
@@ -178,10 +178,10 @@ export async function DELETE(
             message: 'Session 已删除',
         });
     } catch (error) {
-        console.error('删除 session 失败:', error);
+        console.error('删除 Session 失败:', error);
         return NextResponse.json({
             success: false,
-            error: '删除 session 失败',
+            error: '删除 Session 失败',
             message: error instanceof Error ? error.message : '未知错误',
         }, {status: 500});
     }

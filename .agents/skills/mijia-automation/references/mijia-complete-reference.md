@@ -92,20 +92,21 @@
 ### ⚠️ 网关不检查连接完整性（已验证）
 
 网关 `setGraph` **只校验节点级别结构**（字段类型、必填字段），**不校验连接级别的逻辑完整性**。以下错误都能通过网关校验但在运行时不工作：
-- condition 的 condition 端口未连接 → 通过校验，但条件永远满足（默认为 true）
+- condition 的 condition 端口未连接 → 网关允许保存，但实测不会执行 met 分支
 - deviceGet.output2 连到 state 节点 → 通过校验，但语义错误
 - 任何节点的 output 连到 timeRange → 通过校验，但 timeRange 没有输入端口
 
 **因此，生成规则后必须自行验证连接完整性**，不能依赖网关报错。
 
-### state 节点 vs event 节点
+### 事件源、条件状态和流程节点
 
-| 类型 | 特征 | inputs | 代表节点 |
-|------|------|--------|----------|
-| **event 节点** | 可被触发执行 | 有 trigger 或 input 端口 | deviceOutput, condition, delay, deviceGet |
-| **state 节点** | 不能被触发，只提供状态值 | `inputs: {}`（空） | timeRange, alarmClock, deviceInputSetVar, varChange, onLoad |
+| 类型 | 特征 | 代表节点 |
+|------|------|----------|
+| **事件源** | 无输入，主动产生流程事件 | deviceInput, alarmClock, onLoad, varChange |
+| **条件状态源/变换** | 向 condition 或 logic 提供布尔状态 | timeRange, 设备属性状态, logicOr, logicAnd, logicNot |
+| **流程节点** | 接收事件后查询、判断、延时或执行 | deviceGet, condition, delay, deviceOutput |
 
-**state 节点的 outputs 只能连到 event 节点的 `condition` 类端口（如 condition.condition），不能作为触发链的一环。**
+**无输入节点不能接收上游连接。条件状态可直接连接 `condition.condition`，也可先进入 `logicOr` / `logicAnd` / `logicNot`，再由逻辑节点连接 `condition.condition`。**
 
 ### 已知全部节点类型
 
@@ -149,7 +150,7 @@ urn:miot-spec-v2:property:on:00000006:00000001
   "model": "xiaomi.light.btlm2p",    // 设备型号标识符
   "modelName": "米家筒灯2 Pro",      // 产品名称
   "urn": "urn:miot-spec-v2:device:light:0000A001:xiaomi-btlm2p:2:0000C802",
-  "roomId": "52001132047",     // 所属房间ID
+  "roomId": "$ROOM_ID",        // 所属房间ID（合成占位符）
   "roomName": "客厅",          // 所属房间名称
   "icon": "https://..."        // 设备图标URL
 }
@@ -157,7 +158,7 @@ urn:miot-spec-v2:property:on:00000006:00000001
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| specV2Access | boolean | 是否支持 MIOT Spec V2（必须为 true 才能创建规则） |
+| specV2Access | boolean | 是否支持 MIOT Spec V2；用于发现可配置字段 |
 | specV3Access | boolean | 是否支持 MIOT Spec V3 |
 | online | boolean | 设备是否在线（离线设备无法触发） |
 | pushAvailable | boolean | 设备是否可推送属性变化 |
@@ -169,7 +170,7 @@ urn:miot-spec-v2:property:on:00000006:00000001
 | roomName | string | 所属房间名称（如"客厅"） |
 | icon | string | 设备图标 URL |
 
-**筛选可用设备**：`specV2Access === true && online === true`
+**判断层次**：Spec 和字段可发现决定能否建图；`online=true` 决定当前是否适合实测。离线不必然禁止保存规则，但无法证明当前可运行。
 
 ### MIOT Spec 网站查询
 
@@ -402,7 +403,7 @@ MIOT Spec 使用的 format 值与网关要求的 dtype 不同，需要转换：
     "pos": {"x": 100, "y": 100, "width": 528, "height": 164}
   },
   "props": {
-    "did": "950058664",
+    "did": "$DID_LIGHT",
     "siid": 2,
     "piid": 1,
     "preload": false,
@@ -422,7 +423,7 @@ MIOT Spec 使用的 format 值与网关要求的 dtype 不同，需要转换：
 | did | string | 设备ID（来自 getDevList 的 key） |
 | siid | integer | 服务ID（属性所属的服务） |
 | piid | integer | 属性ID（与 eiid 二选一） |
-| preload | boolean | 必须为 `false` |
+| preload | boolean | `false`=只在属性变化时触发；`true`=规则启用瞬间也按当前值评估一次（已实机验证） |
 | dtype | string | `"boolean"` / `"int"` / `"float"` / `"string"`（由属性 format 决定） |
 | operator | string | 操作符，取决于 dtype（见下表） |
 | v1 | any | 比较值，类型与 dtype 匹配 |
@@ -461,7 +462,7 @@ MIOT Spec 使用的 format 值与网关要求的 dtype 不同，需要转换：
     "pos": {"x": 100, "y": 100, "width": 528, "height": 164}
   },
   "props": {
-    "did": "1179053616",
+    "did": "$DID_GATEWAY",
     "siid": 4,
     "eiid": 1,
     "preload": false,
@@ -481,7 +482,7 @@ MIOT Spec 使用的 format 值与网关要求的 dtype 不同，需要转换：
 | did | string | 设备ID |
 | siid | integer | 服务ID |
 | eiid | integer | 事件ID（与 piid 二选一） |
-| preload | boolean | 必须为 `false` |
+| preload | boolean | 同属性模式；事件模式通常用 `false` |
 | arguments | array | 事件参数过滤（可选） |
 
 **arguments 元素结构**：
@@ -513,12 +514,12 @@ MIOT Spec 使用的 format 值与网关要求的 dtype 不同，需要转换：
   "type": "deviceOutput",
   "cfg": {
     "urn": "urn:miot-spec-v2:device:light:0000A001:xiaomi-btlm2p:2",
-    "name": "deviceInput",
+    "name": "deviceOutput",
     "version": 1,
     "pos": {"x": 700, "y": 100, "width": 528, "height": 164}
   },
   "props": {
-    "did": "950058664",
+    "did": "$DID_LIGHT",
     "siid": 2,
     "aiid": 1,
     "ins": [
@@ -549,7 +550,7 @@ MIOT Spec 使用的 format 值与网关要求的 dtype 不同，需要转换：
 {
   "piid": 1,
   "scope": "global",
-  "id": "var_xxx",
+  "id": "varBrightness",
   "dtype": "number",
   "max": 100,
   "min": 0,
@@ -564,7 +565,7 @@ MIOT Spec 使用的 format 值与网关要求的 dtype 不同，需要转换：
 ```json
 {
   "props": {
-    "did": "950058664",
+    "did": "$DID_LIGHT",
     "siid": 2,
     "piid": 2,
     "value": 80
@@ -584,7 +585,9 @@ MIOT Spec 使用的 format 值与网关要求的 dtype 不同，需要转换：
 
 ### deviceGet — 查询当前状态
 
-**用途**：查询设备当前属性值，根据结果决定走哪个分支
+**用途**：取得网关可用于判定的设备属性值，根据结果决定走哪个分支
+
+不得默认查询结果等同于物理设备的实时状态。缓存、最近上报、离线和未知值语义需按设备与固件实测；安全动作必须设计旧值和未知值保护。
 
 ```json
 {
@@ -597,7 +600,7 @@ MIOT Spec 使用的 format 值与网关要求的 dtype 不同，需要转换：
     "pos": {"x": 100, "y": 300, "width": 528, "height": 164}
   },
   "props": {
-    "did": "950058664",
+    "did": "$DID_LIGHT",
     "siid": 2,
     "piid": 1,
     "dtype": "boolean",
@@ -701,7 +704,7 @@ MIOT Spec 使用的 format 值与网关要求的 dtype 不同，需要转换：
     "filter": {"day": [1, 2, 3, 4, 5]}
   },
   "inputs": {},
-  "outputs": {"output": ["nextNode.trigger"]}
+  "outputs": {"output": ["cond1.condition"]}
 }
 ```
 
@@ -713,7 +716,7 @@ MIOT Spec 使用的 format 值与网关要求的 dtype 不同，需要转换：
 - `inputs` 必须是空对象 `{}`（不能有 `trigger`）✅ 已验证
 - `outputs` 只有 `output`（没有 `output2`）✅ 已验证
 - 它是**状态节点**，不是事件驱动节点
-- `outputs.output` **只能连接到 condition.condition** ✅ 已验证
+- `outputs.output` 可直接连接 `condition.condition`，也可先进入 `logicOr/logicAnd/logicNot`，最终连接 `condition.condition` ✅ 已验证
 - `outputs.output` 数组可包含**多个目标**（同一个 timeRange 连到多个 condition）
 - ❌ **禁止**任何节点的 output 连到 timeRange（timeRange 没有输入端口）
 - ❌ **禁止**使用 `output2`（timeRange 只有 `output`，没有 `output2`）
@@ -733,7 +736,7 @@ MIOT Spec 使用的 format 值与网关要求的 dtype 不同，需要转换：
 ❌ 错误：cond2 没有 condition 来源
    query1.output → cond2.trigger     ✅ trigger 有了
    (cond2.condition 没有任何连接)     ❌ condition 没有！
-   结果：cond2 条件永远满足（默认为 true），等于没有条件判断
+   结果：网关允许保存，但实测不会执行 cond2.met
 
 ✅ 正确：
    "query1": {"outputs": {"output": ["cond2.trigger"], "output2": ["cond3.trigger"]}}
@@ -783,7 +786,7 @@ MIOT Spec 使用的 format 值与网关要求的 dtype 不同，需要转换：
 {
   "id": "last1",
   "type": "statusLast",
-  "cfg": {"version": 1, "pos": {...}},
+  "cfg": {"name": "statusLast", "version": 1, "pos": {...}},
   "props": {"timeout": 300000},
   "inputs": {"input": null},
   "outputs": {"output": ["nextNode.trigger"]}
@@ -801,7 +804,7 @@ MIOT Spec 使用的 format 值与网关要求的 dtype 不同，需要转换：
 {
   "id": "seq1",
   "type": "eventSequence",
-  "cfg": {"version": 1, "pos": {...}},
+  "cfg": {"name": "eventSequence", "version": 1, "pos": {...}},
   "props": {"timeout": 10000},
   "inputs": {"input1": null, "input2": null},
   "outputs": {"output": ["nextNode.trigger"]}
@@ -844,14 +847,14 @@ MIOT Spec 使用的 format 值与网关要求的 dtype 不同，需要转换：
 
 **condition 的工作方式**：
 1. 当 `trigger` 输入事件到达时，检查 `condition` 的值
-2. 如果 `condition` 为 `true`（或 `null` 且条件满足），触发 `met`
+2. 如果已连接的 `condition` 状态为 `true`，触发 `met`
 3. 否则触发 `unmet`
 
 **⚠️ condition 关键规则**：
 - **`trigger` 和 `condition` 必须都有信号来源**，缺一不可
 - `trigger` = "当"：由 event 节点的 outputs 触发（如 `deviceInput.output`, `deviceGet.output`）
 - `condition` = "如果"：由 state 节点的 outputs 提供条件值（如 `timeRange.output`, `logicAnd.output`）
-- ❌ 如果 `condition` 未连接 → 网关默认为 true，条件永远满足，等于没有条件判断
+- ❌ 如果 `condition` 未连接 → 网关允许保存，但实测不会执行 `met`
 - ❌ 如果 `trigger` 未连接 → 节点永远不会被触发
 
 **与 deviceGet 配合**：
@@ -890,7 +893,7 @@ deviceInput → condition1
 {
   "id": "loop1",
   "type": "loop",
-  "cfg": {"version": 1, "pos": {...}},
+  "cfg": {"name": "loop", "version": 1, "pos": {...}},
   "props": {"interval": 600000},
   "inputs": {"start": null, "stop": null},
   "outputs": {"output": ["nextNode.trigger"]}
@@ -913,7 +916,7 @@ deviceInput → condition1
 {
   "id": "ntimes1",
   "type": "onlyNTimes",
-  "cfg": {"version": 1, "pos": {...}},
+  "cfg": {"name": "onlyNTimes", "version": 1, "pos": {...}},
   "props": {"n": 3},
   "inputs": {"input": null, "zero": null},
   "outputs": {"output": ["nextNode.trigger"]}
@@ -933,7 +936,7 @@ deviceInput → condition1
 {
   "id": "counter1",
   "type": "counter",
-  "cfg": {"version": 1, "pos": {...}},
+  "cfg": {"name": "counter", "version": 1, "pos": {...}},
   "props": {"n": 5},
   "inputs": {"input": null, "zero": null},
   "outputs": {"output": ["nextNode.trigger"]}
@@ -952,7 +955,7 @@ deviceInput → condition1
 {
   "id": "switch1",
   "type": "modeSwitch",
-  "cfg": {"version": 1, "pos": {...}},
+  "cfg": {"name": "modeSwitch", "version": 1, "pos": {...}},
   "inputs": {"input": null},
   "outputs": {
     "output0": ["nodeA.trigger"],
@@ -976,7 +979,7 @@ deviceInput → condition1
 {
   "id": "or1",
   "type": "signalOr",
-  "cfg": {"version": 1, "pos": {...}},
+  "cfg": {"name": "signalOr", "version": 1, "pos": {...}},
   "inputs": {"input0": null, "input1": null},
   "outputs": {"output": ["nextNode.trigger"]}
 }
@@ -994,9 +997,9 @@ deviceInput → condition1
 {
   "id": "lor1",
   "type": "logicOr",
-  "cfg": {"version": 1, "pos": {...}},
+  "cfg": {"name": "logicOr", "version": 1, "pos": {...}},
   "inputs": {"input0": null, "input1": true},
-  "outputs": {"output": ["nextNode.trigger"]}
+  "outputs": {"output": ["cond1.condition"]}
 }
 ```
 
@@ -1010,9 +1013,9 @@ deviceInput → condition1
 {
   "id": "land1",
   "type": "logicAnd",
-  "cfg": {"version": 1, "pos": {...}},
+  "cfg": {"name": "logicAnd", "version": 1, "pos": {...}},
   "inputs": {"input0": null, "input1": null},
-  "outputs": {"output": ["nextNode.trigger"]}
+  "outputs": {"output": ["cond1.condition"]}
 }
 ```
 
@@ -1026,9 +1029,9 @@ deviceInput → condition1
 {
   "id": "not1",
   "type": "logicNot",
-  "cfg": {"version": 1, "pos": {...}},
+  "cfg": {"name": "logicNot", "version": 1, "pos": {...}},
   "inputs": {"input": null},
-  "outputs": {"output": ["nextNode.trigger"]}
+  "outputs": {"output": ["cond1.condition"]}
 }
 ```
 
@@ -1045,14 +1048,26 @@ deviceInput → condition1
 {
   "id": "reg1",
   "type": "register",
-  "cfg": {"version": 1, "pos": {...}},
+  "cfg": {"name": "register", "version": 1, "pos": {...}},
   "inputs": {"setTrue": null, "setFalse": null},
   "outputs": {"output": ["nextNode.trigger"]}
 }
 ```
 
-- `setTrue` 触发时状态设为 true，触发 output
-- `setFalse` 触发时状态设为 false，触发 output
+- `setTrue` 触发时状态设为 true
+- `setFalse` 触发时状态设为 false
+
+**⚠️ `outputs.output` 是上升沿触发（已实机验证）**：只在状态由 false 变为 true 的那一刻发出一次信号。
+
+| 操作 | 是否发出信号 |
+|------|-------------|
+| `setFalse`（true → false） | 不发 |
+| `setTrue`（false → true） | **发一次** |
+| `setTrue`（true → true，重复） | 不发 |
+
+因此 `register.output` 有两种用法：接 `condition.condition` 当**状态**读；接 `xxx.trigger` 当**上升沿事件**用。
+
+「有动静 → setFalse；空闲 N 秒 → setTrue → 关灯」是正确写法，`setFalse` 不会误触发关灯动作。需要「变 false 时也执行动作」必须另引事件链，不能依赖 `register.output`。
 
 ---
 
@@ -1062,7 +1077,7 @@ deviceInput → condition1
 {
   "id": "load1",
   "type": "onLoad",
-  "cfg": {"version": 1, "pos": {...}},
+  "cfg": {"name": "onLoad", "version": 1, "pos": {...}},
   "inputs": {},
   "outputs": {"output": ["nextNode.trigger"]}
 }
@@ -1079,7 +1094,7 @@ deviceInput → condition1
   "id": "note1",
   "type": "nop",
   "cfg": {
-    "name": "deviceInput",
+    "name": "nop",
     "version": 1,
     "pos": {"x": 100, "y": 100, "width": 528, "height": 200},
     "contents": "这是备注内容",
@@ -1107,17 +1122,17 @@ deviceInput → condition1
   "type": "deviceInputSetVar",
   "cfg": {
     "urn": "urn:...",
-    "name": "deviceInput",
+    "name": "deviceInputSetVar",
     "version": 1,
     "pos": {...}
   },
   "props": {
-    "did": "950058664",
+    "did": "$DID_DEVICE",
     "siid": 2,
     "piid": 1,
     "dtype": "number",
     "scope": "global",
-    "id": "var_temperature",
+    "id": "varTemperature",
     "preload": false
   },
   "inputs": {},
@@ -1147,7 +1162,7 @@ deviceInput → condition1
     "siid": 4,
     "eiid": 1,
     "arguments": [
-      {"piid": 1, "dtype": "string", "scope": "global", "id": "var_scene"}
+      {"piid": 1, "dtype": "string", "scope": "global", "id": "varScene"}
     ]
   }
 }
@@ -1163,22 +1178,21 @@ deviceInput → condition1
 {
   "id": "getvar1",
   "type": "deviceGetSetVar",
-  "cfg": {"urn": "urn:...", "version": 1, "pos": {...}},
+  "cfg": {"urn": "urn:...", "name": "deviceGetSetVar", "version": 1, "pos": {...}},
   "props": {
-    "did": "950058664",
+    "did": "$DID_DEVICE",
     "siid": 2,
     "piid": 2,
     "dtype": "number",
     "scope": "global",
-    "id": "var_brightness"
+    "id": "varBrightness"
   },
   "inputs": {"input": null},
-  "outputs": {
-    "output": ["nextNode.trigger"],
-    "output2": ["fallbackNode.trigger"]
-  }
+  "outputs": {"output": ["nextNode.trigger"]}
 }
 ```
+
+极客版 UI 实测该卡片只有一个 `output`，查询成功并完成赋值后触发；它没有 `output2`，不要套用 `deviceGet` 的双分支结构。
 
 ---
 
@@ -1188,10 +1202,10 @@ deviceInput → condition1
 {
   "id": "varchange1",
   "type": "varChange",
-  "cfg": {"version": 1, "pos": {...}},
+  "cfg": {"name": "varChange", "version": 1, "pos": {...}},
   "props": {
     "scope": "global",
-    "id": "var_temperature",
+    "id": "varTemperature",
     "varType": "number",
     "preload": true,
     "operator": ">=",
@@ -1220,10 +1234,10 @@ deviceInput → condition1
 {
   "id": "varget1",
   "type": "varGet",
-  "cfg": {"version": 1, "pos": {...}},
+  "cfg": {"name": "varGet", "version": 1, "pos": {...}},
   "props": {
     "scope": "global",
-    "id": "var_count",
+    "id": "varCount",
     "varType": "number",
     "operator": ">=",
     "v1": 10
@@ -1246,24 +1260,24 @@ deviceInput → condition1
 {
   "id": "varsetnum1",
   "type": "varSetNumber",
-  "cfg": {"version": 1, "pos": {...}},
+  "cfg": {"name": "varSetNumber", "version": 1, "pos": {...}},
   "props": {
     "scope": "global",
-    "id": "var_result",
+    "id": "varResult",
     "elements": [
       {"type": "const", "value": "$"},
       {"type": "const", "value": "+"},
       {"type": "const", "value": "1"}
     ]
   },
-  "inputs": {"trigger": null},
+  "inputs": {"input": null},
   "outputs": {"output": ["nextNode.trigger"]}
 }
 ```
 
 **elements**：表达式元素数组
 - `{"type": "const", "value": "数字或运算符"}` — 常量
-- `{"type": "var", "scope": "global", "id": "var_xxx"}` — 变量引用（用 `$` 占位）
+- `{"type": "var", "scope": "global", "id": "varValue"}` — 变量引用（用 `$` 占位）
 
 所有 const 元素的 value 拼接后（var 元素替换为 `$`）必须是合法的数学表达式。
 
@@ -1295,23 +1309,23 @@ deviceInput → condition1
 {
   "id": "varsetstr1",
   "type": "varSetString",
-  "cfg": {"version": 1, "pos": {...}},
+  "cfg": {"name": "varSetString", "version": 1, "pos": {...}},
   "props": {
     "scope": "global",
-    "id": "var_message",
+    "id": "varMessage",
     "elements": [
       {"type": "const", "value": "温度是"},
-      {"type": "var", "scope": "global", "id": "var_temp"},
+      {"type": "var", "scope": "global", "id": "varTemperature"},
       {"type": "const", "value": "度"}
     ]
   },
-  "inputs": {"trigger": null},
+  "inputs": {"input": null},
   "outputs": {"output": ["nextNode.trigger"]}
 }
 ```
 
 - `{"type": "const", "value": "文本"}` — 常量字符串
-- `{"type": "var", "scope": "global", "id": "var_xxx"}` — 变量值
+- `{"type": "var", "scope": "global", "id": "varValue"}` — 变量值
 
 结果是所有元素的文本拼接。
 
@@ -1323,10 +1337,10 @@ deviceInput → condition1
 
 ```json
 {
-  "id": "graph_1710000000000",
+  "id": "1710000000000",
   "nodes": [节点1, 节点2, ...],
   "cfg": {
-    "id": "graph_1710000000000",
+    "id": "1710000000000",
     "enable": true,
     "uiType": "graph",
     "userData": {
@@ -1340,6 +1354,7 @@ deviceInput → condition1
 
 **校验规则**：
 - `cfg.id === id`（必须一致）
+- 规则 ID 为 13 位纯数字；不要使用 `graph_` 前缀
 - `cfg.enable` 必须是 boolean
 - `nodes` 必须是数组
 - 每个节点通过 `Pr[t.type].checkWebNode(t)` 校验
@@ -1349,7 +1364,7 @@ deviceInput → condition1
 ```json
 {
   "params": {
-    "id": "graph_1710000000000",
+    "id": "1710000000000",
     "enable": true,
     "userData": {
       "name": "新名称",
@@ -1370,7 +1385,7 @@ deviceInput → condition1
 
 ```json
 {
-  "id": "graph_1710000000000",
+  "id": "1710000000000",
   "nodes": [
     {
       "id": "trigger1",
@@ -1382,7 +1397,7 @@ deviceInput → condition1
         "pos": {"x": 100, "y": 100, "width": 528, "height": 164}
       },
       "props": {
-        "did": "1179053616",
+        "did": "$DID_GATEWAY",
         "siid": 4,
         "eiid": 1,
         "preload": false,
@@ -1403,7 +1418,7 @@ deviceInput → condition1
         "pos": {"x": 700, "y": 100, "width": 528, "height": 164}
       },
       "props": {
-        "did": "950058664",
+        "did": "$DID_LIGHT",
         "siid": 2,
         "aiid": 1,
         "ins": [{"piid": 1, "value": true}]
@@ -1413,7 +1428,7 @@ deviceInput → condition1
     }
   ],
   "cfg": {
-    "id": "graph_1710000000000",
+    "id": "1710000000000",
     "enable": true,
     "uiType": "graph",
     "userData": {
@@ -1429,7 +1444,7 @@ deviceInput → condition1
 
 ```json
 {
-  "id": "graph_1710000000001",
+  "id": "1710000000001",
   "nodes": [
     {
       "id": "timer1",
@@ -1441,27 +1456,27 @@ deviceInput → condition1
         "filter": {"day": [0, 1, 2, 3, 4, 5, 6]}
       },
       "inputs": {},
-      "outputs": {"output": ["delay1.trigger"]}
+      "outputs": {"output": ["delay1.input"]}
     },
     {
       "id": "delay1",
       "type": "delay",
       "cfg": {"name": "delay", "version": 1, "unit": "s", "value": 5, "pos": {"x": 700, "y": 100, "width": 528, "height": 164}},
       "props": {"timeout": 5000},
-      "inputs": {"trigger": null},
+      "inputs": {"input": null},
       "outputs": {"output": ["action1.trigger"]}
     },
     {
       "id": "action1",
       "type": "deviceOutput",
-      "cfg": {"urn": "urn:miot-spec-v2:device:light:0000A001:xiaomi-btlm2p:2", "version": 1, "pos": {"x": 1300, "y": 100, "width": 528, "height": 164}},
-      "props": {"did": "950058664", "siid": 2, "aiid": 1, "ins": [{"piid": 1, "value": false}]},
+      "cfg": {"urn": "urn:miot-spec-v2:device:light:0000A001:xiaomi-btlm2p:2", "name": "deviceOutput", "version": 1, "pos": {"x": 1300, "y": 100, "width": 528, "height": 164}},
+      "props": {"did": "$DID_LIGHT", "siid": 2, "aiid": 1, "ins": [{"piid": 1, "value": false}]},
       "inputs": {"trigger": null},
       "outputs": {"output": []}
     }
   ],
   "cfg": {
-    "id": "graph_1710000000001",
+    "id": "1710000000001",
     "enable": true,
     "uiType": "graph",
     "userData": {"name": "定时关灯", "lastUpdateTime": 1710000000000, "transform": {"x": 0, "y": 0, "scale": 1, "rotate": 0}}
@@ -1473,42 +1488,42 @@ deviceInput → condition1
 
 ```json
 {
-  "id": "graph_1710000000002",
+  "id": "1710000000002",
   "nodes": [
     {
       "id": "input1",
       "type": "deviceInput",
-      "cfg": {"urn": "urn:miot-spec-v2:device:gateway:0000A019:xiaomi-hub1:3", "version": 1, "pos": {"x": 100, "y": 100, "width": 528, "height": 164}},
-      "props": {"did": "1179053616", "siid": 4, "eiid": 1, "preload": false, "arguments": [{"piid": 1, "dtype": "string", "operator": "=", "v1": "客厅明亮"}]},
+      "cfg": {"urn": "urn:miot-spec-v2:device:gateway:0000A019:xiaomi-hub1:3", "name": "deviceInput", "version": 1, "pos": {"x": 100, "y": 100, "width": 528, "height": 164}},
+      "props": {"did": "$DID_GATEWAY", "siid": 4, "eiid": 1, "preload": false, "arguments": [{"piid": 1, "dtype": "string", "operator": "=", "v1": "客厅明亮"}]},
       "inputs": {},
       "outputs": {"output": ["or1.input0"]}
     },
     {
       "id": "input2",
       "type": "deviceInput",
-      "cfg": {"urn": "urn:miot-spec-v2:device:gateway:0000A019:xiaomi-hub1:3", "version": 1, "pos": {"x": 100, "y": 300, "width": 528, "height": 164}},
-      "props": {"did": "1179053616", "siid": 4, "eiid": 1, "preload": false, "arguments": [{"piid": 1, "dtype": "string", "operator": "=", "v1": "客厅温馨"}]},
+      "cfg": {"urn": "urn:miot-spec-v2:device:gateway:0000A019:xiaomi-hub1:3", "name": "deviceInput", "version": 1, "pos": {"x": 100, "y": 300, "width": 528, "height": 164}},
+      "props": {"did": "$DID_GATEWAY", "siid": 4, "eiid": 1, "preload": false, "arguments": [{"piid": 1, "dtype": "string", "operator": "=", "v1": "客厅温馨"}]},
       "inputs": {},
       "outputs": {"output": ["or1.input1"]}
     },
     {
       "id": "or1",
       "type": "signalOr",
-      "cfg": {"version": 1, "pos": {"x": 700, "y": 200, "width": 528, "height": 164}},
+      "cfg": {"name": "signalOr", "version": 1, "pos": {"x": 700, "y": 200, "width": 528, "height": 164}},
       "inputs": {"input0": null, "input1": null},
       "outputs": {"output": ["action1.trigger"]}
     },
     {
       "id": "action1",
       "type": "deviceOutput",
-      "cfg": {"urn": "urn:miot-spec-v2:device:light:0000A001:lemesh-wy0d02:1", "version": 1, "pos": {"x": 1300, "y": 200, "width": 528, "height": 164}},
-      "props": {"did": "2076971127", "siid": 2, "aiid": 1, "ins": [{"piid": 2, "value": 80}]},
+      "cfg": {"urn": "urn:miot-spec-v2:device:light:0000A001:lemesh-wy0d02:1", "name": "deviceOutput", "version": 1, "pos": {"x": 1300, "y": 200, "width": 528, "height": 164}},
+      "props": {"did": "$DID_LIGHT", "siid": 2, "aiid": 1, "ins": [{"piid": 2, "value": 80}]},
       "inputs": {"trigger": null},
       "outputs": {"output": []}
     }
   ],
   "cfg": {
-    "id": "graph_1710000000002",
+    "id": "1710000000002",
     "enable": true,
     "uiType": "graph",
     "userData": {"name": "多场景开灯", "lastUpdateTime": 1710000000000, "transform": {"x": 0, "y": 0, "scale": 1, "rotate": 0}}
