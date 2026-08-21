@@ -1,10 +1,12 @@
 'use client';
+/* eslint-disable @next/next/no-img-element -- 本地 Blob 预览不适合经 next/image 优化 */
 
 import React, {useState, useRef, useEffect, useCallback} from 'react';
 import {Input, Button, Space, Typography, Spin, message, Tag, Collapse, Tooltip} from 'antd';
-import {SendOutlined, LoadingOutlined, ToolOutlined, RobotOutlined, QuestionCircleOutlined, StopOutlined, RollbackOutlined, ThunderboltOutlined, CopyOutlined, CheckOutlined} from '@ant-design/icons';
+import {SendOutlined, LoadingOutlined, ToolOutlined, RobotOutlined, QuestionCircleOutlined, StopOutlined, RollbackOutlined, ThunderboltOutlined, CopyOutlined, CheckOutlined, PictureOutlined, CloseOutlined} from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import {extractSseData} from '@/lib/sse';
 
 const {Text} = Typography;
 const {TextArea} = Input;
@@ -13,23 +15,42 @@ interface AgentOutput {
     type: 'thinking' | 'tool_start' | 'tool_result' | 'complete' | 'waiting_input' | 'error';
     content?: string;
     tool?: string;
+    toolCallId?: string;
     args?: any;
     result?: any;
     question?: string;
     options?: string[];
     error?: string;
     message?: string;
+    durationMs?: number;
+}
+
+interface DisplayToolCall {
+    toolCallId?: string;
+    tool: string;
+    args?: any;
+    result?: any;
+    success: boolean;
+    durationMs?: number;
 }
 
 interface ChatMessage {
     id: string;
     role: 'user' | 'assistant';
     content: string;
+    images?: PendingImage[];
     seq?: number;
     process?: {
-        toolCalls: Array<{ tool: string; args?: any; result?: any; success: boolean }>;
+        toolCalls: DisplayToolCall[];
         thinking: string;
     };
+}
+
+interface PendingImage {
+    id: string;
+    file: File;
+    name: string;
+    previewUrl: string;
 }
 
 interface SessionMessage {
@@ -38,7 +59,7 @@ interface SessionMessage {
     content: string;
     timestamp: string;
     thinking?: string;
-    toolCalls?: Array<{ tool: string; args?: any; result?: any; success: boolean }>;
+    toolCalls?: DisplayToolCall[];
 }
 
 interface ChatProps {
@@ -52,9 +73,50 @@ interface ChatProps {
 
 let messageIdCounter = 0;
 const graphMutationTools = new Set(['create_graph', 'update_graph', 'delete_graph', 'toggle_graph']);
+const acceptedImageTypes = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
+const maxImageCount = 4;
+const maxImageBytes = 8 * 1024 * 1024;
+const maxTotalImageBytes = 20 * 1024 * 1024;
+const chatApiPath = '/api/chat';
+
+async function getChatRequestError(response: Response): Promise<string> {
+    const contentType = response.headers.get('content-type') || '';
+    let detail = '';
+
+    if (contentType.includes('application/json')) {
+        const body = await response.json().catch(() => null) as {error?: unknown} | null;
+        if (typeof body?.error === 'string' && body.error.trim()) detail = body.error.trim();
+    } else {
+        detail = (await response.text().catch(() => ''))
+            .replace(/<[^>]*>/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .slice(0, 160);
+    }
+
+    if (detail) return detail;
+    if (response.status === 404) {
+        return `未找到聊天接口 ${chatApiPath}。请确认当前打开的是本应用地址并按 Ctrl+F5 强制刷新后重试。`;
+    }
+    return `聊天接口请求失败（HTTP ${response.status}）`;
+}
 
 function generateMessageId(): string {
     return `msg_${Date.now()}_${++messageIdCounter}`;
+}
+
+function extractTextOptions(content: string): string[] {
+    if (!content) return [];
+    const lines = content.split('\n');
+    const options: string[] = [];
+    for (const rawLine of lines) {
+        const line = rawLine.trim();
+        const match = line.match(/^(?:[-*•\d\.]+\s*)?((?:方案|选项)[1-9一二三四ABC\d]+[:：].+)$/i);
+        if (match && match[1]) {
+            options.push(match[1].trim());
+        }
+    }
+    return options.length >= 2 ? options : [];
 }
 
 export default function Chat({
@@ -72,13 +134,16 @@ export default function Chat({
     const [currentSessionId, setCurrentSessionId] = useState<string | undefined>(sessionId);
 
     const [streamThinking, setStreamThinking] = useState('');
-    const [streamToolCalls, setStreamToolCalls] = useState<Array<{ tool: string; args?: any; result?: any; success: boolean }>>([]);
+    const [streamToolCalls, setStreamToolCalls] = useState<DisplayToolCall[]>([]);
     const [streamFinalContent, setStreamFinalContent] = useState('');
     const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+    const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
 
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const abortControllerRef = useRef<AbortController | null>(null);
     const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const imageUrlsRef = useRef<Set<string>>(new Set());
     const passcode = propPasscode || '';
     const prevSessionIdRef = useRef<string | undefined>(sessionId);
     const initializedRef = useRef(false);
@@ -95,6 +160,9 @@ export default function Chat({
             setWaitingInput(null);
             setIsLoading(false);
             setCurrentSessionId(sessionId);
+            setPendingImages([]);
+            imageUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
+            imageUrlsRef.current.clear();
             prevSessionIdRef.current = sessionId;
             initializedRef.current = false;
         }
@@ -138,11 +206,66 @@ export default function Chat({
     }, [messages, streamThinking, streamToolCalls, streamFinalContent, waitingInput]);
 
     useEffect(() => {
+        const imageUrls = imageUrlsRef.current;
         return () => {
             if (copyTimerRef.current) {
                 clearTimeout(copyTimerRef.current);
             }
+            imageUrls.forEach(url => URL.revokeObjectURL(url));
+            imageUrls.clear();
         };
+    }, []);
+
+    const addImageFiles = useCallback((files: File[]) => {
+        const imageFiles = files.filter(file => file.type.startsWith('image/'));
+        if (imageFiles.length === 0) return;
+
+        setPendingImages(current => {
+            const next = [...current];
+            let totalBytes = next.reduce((sum, image) => sum + image.file.size, 0);
+
+            for (const file of imageFiles) {
+                if (next.length >= maxImageCount) {
+                    message.warning(`一次最多上传 ${maxImageCount} 张图片`);
+                    break;
+                }
+                if (!acceptedImageTypes.has(file.type)) {
+                    message.error(`${file.name} 格式不支持，请使用 PNG、JPG、WebP 或 GIF`);
+                    continue;
+                }
+                if (file.size > maxImageBytes) {
+                    message.error(`${file.name} 超过 8 MB`);
+                    continue;
+                }
+                if (totalBytes + file.size > maxTotalImageBytes) {
+                    message.error('图片总大小不能超过 20 MB');
+                    break;
+                }
+
+                const previewUrl = URL.createObjectURL(file);
+                imageUrlsRef.current.add(previewUrl);
+                next.push({
+                    id: `image_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+                    file,
+                    name: file.name,
+                    previewUrl,
+                });
+                totalBytes += file.size;
+            }
+
+            return next;
+        });
+    }, []);
+
+    const removePendingImage = useCallback((id: string) => {
+        setPendingImages(current => {
+            const target = current.find(image => image.id === id);
+            if (target) {
+                URL.revokeObjectURL(target.previewUrl);
+                imageUrlsRef.current.delete(target.previewUrl);
+            }
+            return current.filter(image => image.id !== id);
+        });
     }, []);
 
     const copyToClipboard = useCallback(async (content: string, messageId: string) => {
@@ -191,21 +314,25 @@ export default function Chat({
         </Tooltip>
     );
 
-    const sendMessage = useCallback(async (messageText: string) => {
-        if (!messageText.trim() || isLoading) return;
+    const sendMessage = useCallback(async (messageText: string, imageAttachments: PendingImage[] = []) => {
+        if ((!messageText.trim() && imageAttachments.length === 0) || isLoading) return;
+
+        const displayMessage = messageText.trim() || '请识别图片中的自动化并生成';
 
         const userMessage: ChatMessage = {
             id: generateMessageId(),
             role: 'user',
-            content: messageText,
+            content: displayMessage,
+            images: imageAttachments,
         };
         setMessages(prev => [...prev, userMessage]);
         setInput('');
+        setPendingImages([]);
         setIsLoading(true);
         setWaitingInput(null);
 
         let currentThinking = '';
-        const currentToolCalls: Array<{ tool: string; args?: any; result?: any; success: boolean }> = [];
+        const currentToolCalls: DisplayToolCall[] = [];
         let finalContent = '';
         let graphChanged = false;
         setStreamThinking('');
@@ -216,19 +343,100 @@ export default function Chat({
         abortControllerRef.current = abortController;
 
         try {
-            const response = await fetch('/api/chat', {
+            const formData = new FormData();
+            formData.append('message', displayMessage);
+            if (currentSessionId) formData.append('sessionId', currentSessionId);
+            if (passcode) formData.append('passcode', passcode);
+            imageAttachments.forEach(image => formData.append('images', image.file, image.name));
+
+            const response = await fetch(chatApiPath, {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({message: messageText, passcode, sessionId: currentSessionId}),
+                body: formData,
+                cache: 'no-store',
                 signal: abortController.signal,
             });
 
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            if (!response.ok) {
+                throw new Error(await getChatRequestError(response));
+            }
 
             const reader = response.body?.getReader();
             if (!reader) throw new Error('无法读取响应流');
 
             const decoder = new TextDecoder();
+            let sseBuffer = '';
+            let streamError = '';
+
+            const handleOutput = (output: AgentOutput) => {
+                switch (output.type) {
+                    case 'thinking':
+                        currentThinking += output.content || '';
+                        setStreamThinking(currentThinking);
+                        break;
+                    case 'tool_start':
+                        currentToolCalls.push({
+                            toolCallId: output.toolCallId, tool: output.tool || '',
+                            args: output.args, success: false,
+                        });
+                        setStreamToolCalls([...currentToolCalls]);
+                        break;
+                    case 'tool_result': {
+                        const matchedIndex = output.toolCallId
+                            ? currentToolCalls.findIndex(tc => tc.toolCallId === output.toolCallId)
+                            : currentToolCalls.length - 1;
+                        if (matchedIndex >= 0) {
+                            currentToolCalls[matchedIndex].success = output.result?.success !== false;
+                            currentToolCalls[matchedIndex].result = output.result;
+                            currentToolCalls[matchedIndex].durationMs = output.durationMs;
+                            if (graphMutationTools.has(currentToolCalls[matchedIndex].tool) && output.result?.success !== false) {
+                                graphChanged = true;
+                            }
+                            setStreamToolCalls([...currentToolCalls]);
+                        }
+                        break;
+                    }
+                    case 'complete':
+                        finalContent = output.message || output.content || '';
+                        setStreamFinalContent(finalContent);
+                        break;
+                    case 'waiting_input': {
+                        const opts = Array.isArray(output.options) ? output.options : [];
+                        if (opts.length > 0) setWaitingInput({question: output.question || '请选择', options: opts});
+                        break;
+                    }
+                    case 'error': {
+                        streamError = output.error || '发生错误';
+                        let pendingIndex = -1;
+                        for (let i = currentToolCalls.length - 1; i >= 0; i--) {
+                            if (currentToolCalls[i].result === undefined) {
+                                pendingIndex = i;
+                                break;
+                            }
+                        }
+                        if (pendingIndex >= 0) {
+                            currentToolCalls[pendingIndex].success = false;
+                            currentToolCalls[pendingIndex].result = {success: false, error: streamError};
+                            setStreamToolCalls([...currentToolCalls]);
+                        } else if (!finalContent) {
+                            finalContent = `执行失败：${streamError}`;
+                            setStreamFinalContent(finalContent);
+                        }
+                        message.error(
+                            imageAttachments.length > 0
+                                ? `图片识别失败，请确认当前模型支持视觉输入。 ${streamError}`
+                                : streamError
+                        );
+                        break;
+                    }
+                }
+            };
+
+            const processSseData = (dataItems: string[]) => {
+                for (const data of dataItems) {
+                    if (data === '[DONE]' || !data) continue;
+                    handleOutput(JSON.parse(data) as AgentOutput);
+                }
+            };
 
             while (true) {
                 if (abortController.signal.aborted) {
@@ -238,58 +446,15 @@ export default function Chat({
                 const {done, value} = await reader.read();
                 if (done) break;
 
-                const chunk = decoder.decode(value);
-                const lines = chunk.split('\n');
-
-                for (const line of lines) {
-                    if (!line.startsWith('data: ')) continue;
-                    const data = line.slice(6);
-                    if (data === '[DONE]') continue;
-                    try {
-                        const output: AgentOutput = JSON.parse(data);
-                        switch (output.type) {
-                            case 'thinking':
-                                currentThinking += output.content || '';
-                                setStreamThinking(currentThinking);
-                                break;
-                            case 'tool_start':
-                                currentToolCalls.push({tool: output.tool || '', args: output.args, success: false});
-                                setStreamToolCalls([...currentToolCalls]);
-                                break;
-                            case 'tool_result':
-                                const lastIndex = currentToolCalls.length - 1;
-                                if (lastIndex >= 0) {
-                                    currentToolCalls[lastIndex].success = output.result?.success !== false;
-                                    currentToolCalls[lastIndex].result = output.result;
-                                    if (
-                                        graphMutationTools.has(currentToolCalls[lastIndex].tool) &&
-                                        output.result?.success !== false
-                                    ) {
-                                        graphChanged = true;
-                                    }
-                                    setStreamToolCalls([...currentToolCalls]);
-                                }
-                                break;
-                            case 'complete':
-                                finalContent = output.message || output.content || '';
-                                setStreamFinalContent(finalContent);
-                                break;
-                            case 'waiting_input':
-                                const opts = Array.isArray(output.options) ? output.options : [];
-                                if (opts.length > 0) setWaitingInput({question: output.question || '请选择', options: opts});
-                                break;
-                            case 'error':
-                                message.error(output.error || '发生错误');
-                                break;
-                        }
-                    } catch (parseError) {
-                        // 忽略解析错误（可能是不完整的 JSON 行）
-                        if (data.length > 2) { // 只记录非空行的错误
-                            console.warn('流式数据解析失败:', data, parseError);
-                        }
-                    }
-                }
+                sseBuffer += decoder.decode(value, {stream: true});
+                const extracted = extractSseData(sseBuffer);
+                sseBuffer = extracted.rest;
+                processSseData(extracted.data);
             }
+
+            sseBuffer += decoder.decode();
+            const finalEvents = extractSseData(sseBuffer, true);
+            processSseData(finalEvents.data);
 
             if (abortController.signal.aborted) return;
 
@@ -306,7 +471,7 @@ export default function Chat({
                         toolCalls: currentToolCalls.length > 0 ? currentToolCalls : undefined,
                     };
                     const userSessionMessage: SessionMessage = {
-                        seq: 0, role: 'user', content: messageText, timestamp: new Date().toISOString(),
+                        seq: 0, role: 'user', content: displayMessage, timestamp: new Date().toISOString(),
                     };
                     onSessionCreated?.(newSessionId, [userSessionMessage, assistantSessionMessage]);
                 }
@@ -331,6 +496,7 @@ export default function Chat({
         } catch (error: any) {
             if (error.name === 'AbortError') return;
             setInput(messageText);
+            setPendingImages(imageAttachments);
             setMessages(prev => prev.filter(m => m.id !== userMessage.id));
             message.error('发送失败: ' + error.message);
         } finally {
@@ -341,15 +507,15 @@ export default function Chat({
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!input.trim()) return;
+        if (!input.trim() && pendingImages.length === 0) return;
         if (waitingInput) setWaitingInput(null);
-        sendMessage(input);
+        sendMessage(input, pendingImages);
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            if (input.trim() && !isLoading) handleSubmit(e as any);
+            if ((input.trim() || pendingImages.length > 0) && !isLoading) handleSubmit(e as any);
         }
     };
 
@@ -365,13 +531,14 @@ export default function Chat({
         setWaitingInput(null);
     };
 
-    const handleReset = useCallback(async (targetSeq: number, messageContent: string) => {
+    const handleReset = useCallback(async (targetSeq: number, messageContent: string, images: PendingImage[] = []) => {
         if (!currentSessionId || !onResetSession) return;
         handleStop();
         try {
             // targetSeq - 1：删除选中的那条消息及其后续所有消息
             await onResetSession(currentSessionId, targetSeq - 1);
             setInput(messageContent);
+            setPendingImages(images);
             initializedRef.current = false;
         } catch (error) {
         }
@@ -439,6 +606,21 @@ export default function Chat({
                                                     <Tag color={tc.success ? 'success' : 'error'} style={{fontSize: 10}}>
                                                         {tc.success ? '✓' : '✗'}
                                                     </Tag>
+                                                    {typeof tc.durationMs === 'number' && (
+                                                        <Text style={{fontSize: 10, color: 'var(--text-muted)'}}>{tc.durationMs} ms</Text>
+                                                    )}
+                                                    {tc.result && (
+                                                        <Tooltip title={copiedMessageId === `${msg.id}-tool-${i}` ? '已复制' : '复制结果'}>
+                                                            <Button
+                                                                type="text" size="small" aria-label="复制工具结果"
+                                                                icon={copiedMessageId === `${msg.id}-tool-${i}` ? <CheckOutlined/> : <CopyOutlined/>}
+                                                                onClick={() => copyToClipboard(
+                                                                    typeof tc.result === 'object' ? JSON.stringify(tc.result, null, 2) : String(tc.result),
+                                                                    `${msg.id}-tool-${i}`
+                                                                )}
+                                                            />
+                                                        </Tooltip>
+                                                    )}
                                                 </Space>
                                                 {tc.args && Object.keys(tc.args).length > 0 && (
                                                     <div style={{marginTop: 4, color: 'var(--text-muted)'}}>
@@ -471,6 +653,51 @@ export default function Chat({
                             {renderCopyButton(msg.content, msg.id)}
                         </div>
                     )}
+
+                    {(() => {
+                        const isLatest = messages[messages.length - 1]?.id === msg.id;
+                        const textOptions = isLatest && !isLoading && !waitingInput ? extractTextOptions(msg.content) : [];
+                        if (textOptions.length === 0) return null;
+                        return (
+                            <div className="msg-enter" style={{
+                                marginTop: 10,
+                                padding: 14,
+                                background: 'var(--accent-soft)',
+                                border: '1px solid var(--accent-border)',
+                                borderRadius: 'var(--radius-lg)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 8,
+                            }}>
+                                <Space size={6} style={{marginBottom: 2}}>
+                                    <QuestionCircleOutlined style={{color: 'var(--accent)', fontSize: 13}}/>
+                                    <Text strong style={{fontSize: 13, color: 'var(--text-bright)'}}>点击快捷执行方案：</Text>
+                                </Space>
+                                <div style={{display: 'flex', flexDirection: 'column', gap: 6}}>
+                                    {textOptions.map((opt, i) => (
+                                        <Button
+                                            key={`text-opt-${i}`}
+                                            className="chat-suggestion-button"
+                                            onClick={() => sendMessage(opt)}
+                                            style={{
+                                                textAlign: 'left',
+                                                height: 'auto',
+                                                whiteSpace: 'normal',
+                                                padding: '10px 14px',
+                                                borderRadius: 'var(--radius-md)',
+                                                border: '1px solid var(--accent-border)',
+                                                background: 'var(--surface)',
+                                                color: 'var(--text-bright)',
+                                                fontSize: 13,
+                                            }}
+                                        >
+                                            {opt}
+                                        </Button>
+                                    ))}
+                                </div>
+                            </div>
+                        );
+                    })()}
                 </div>
             </div>
         );
@@ -551,6 +778,21 @@ export default function Chat({
                                                     <Tag color={tc.success ? 'success' : tc.result ? 'error' : 'processing'}>
                                                         {tc.success ? '✓' : tc.result ? '✗' : '…'}
                                                     </Tag>
+                                                    {typeof tc.durationMs === 'number' && (
+                                                        <Text style={{fontSize: 10, color: 'var(--text-muted)'}}>{tc.durationMs} ms</Text>
+                                                    )}
+                                                    {tc.result && (
+                                                        <Tooltip title={copiedMessageId === `stream-tool-${i}` ? '已复制' : '复制结果'}>
+                                                            <Button
+                                                                type="text" size="small" aria-label="复制工具结果"
+                                                                icon={copiedMessageId === `stream-tool-${i}` ? <CheckOutlined/> : <CopyOutlined/>}
+                                                                onClick={() => copyToClipboard(
+                                                                    typeof tc.result === 'object' ? JSON.stringify(tc.result, null, 2) : String(tc.result),
+                                                                    `stream-tool-${i}`
+                                                                )}
+                                                            />
+                                                        </Tooltip>
+                                                    )}
                                                 </Space>
                                                 {tc.args && Object.keys(tc.args).length > 0 && (
                                                     <div style={{marginTop: 4, color: 'var(--text-muted)'}}>
@@ -667,6 +909,13 @@ export default function Chat({
                                     borderRadius: 'var(--radius-lg) var(--radius-lg) 6px var(--radius-lg)',
                                     position: 'relative',
                                 }}>
+                                    {msg.images && msg.images.length > 0 && (
+                                        <div className="chat-message-images">
+                                            {msg.images.map(image => (
+                                                <img key={image.id} src={image.previewUrl} alt={image.name}/>
+                                            ))}
+                                        </div>
+                                    )}
                                     <div className="chat-message-content" style={{whiteSpace: 'pre-wrap', lineHeight: 1.6}}>{msg.content}</div>
                                     {renderCopyButton(msg.content, msg.id)}
                                 </div>
@@ -675,7 +924,7 @@ export default function Chat({
                                         <Button
                                             type="text" size="small"
                                             icon={<RollbackOutlined/>}
-                                            onClick={() => handleReset(msg.seq!, msg.content)}
+                                            onClick={() => handleReset(msg.seq!, msg.content, msg.images)}
                                             style={{fontSize: 11, color: 'var(--text-muted)', padding: '0 6px'}}
                                         >
                                             重做
@@ -738,19 +987,69 @@ export default function Chat({
             <div className="chat-input-bar" style={{
                 padding: '14px 20px',
                 borderTop: '1px solid var(--border-subtle)',
+            }} onDragOver={event => event.preventDefault()} onDrop={event => {
+                event.preventDefault();
+                if (!isLoading) addImageFiles(Array.from(event.dataTransfer.files));
             }}>
+                {pendingImages.length > 0 && (
+                    <div className="chat-image-preview-list">
+                        {pendingImages.map(image => (
+                            <div className="chat-image-preview" key={image.id}>
+                                <img src={image.previewUrl} alt={image.name}/>
+                                <Tooltip title={image.name}>
+                                    <span>{image.name}</span>
+                                </Tooltip>
+                                <Button
+                                    type="text"
+                                    size="small"
+                                    aria-label={`移除 ${image.name}`}
+                                    icon={<CloseOutlined/>}
+                                    onClick={() => removePendingImage(image.id)}
+                                />
+                            </div>
+                        ))}
+                    </div>
+                )}
                 <form onSubmit={handleSubmit}>
                     <Space.Compact style={{width: '100%'}}>
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp,image/gif"
+                            multiple
+                            hidden
+                            onChange={event => {
+                                addImageFiles(Array.from(event.target.files || []));
+                                event.target.value = '';
+                            }}
+                        />
+                        <Tooltip title="上传自动化截图（也可粘贴或拖入）">
+                            <Button
+                                className="chat-image-button"
+                                icon={<PictureOutlined/>}
+                                disabled={isLoading}
+                                aria-label="上传图片"
+                                onClick={() => fileInputRef.current?.click()}
+                                style={{height: 40, borderRadius: 'var(--radius-lg) 0 0 var(--radius-lg)'}}
+                            />
+                        </Tooltip>
                         <TextArea
                             className="chat-input"
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
                             onKeyDown={handleKeyDown}
-                            placeholder={waitingInput ? "选择上方选项，或输入自定义回复..." : "输入消息... (Enter 发送, Shift+Enter 换行)"}
+                            onPaste={event => {
+                                const files = Array.from(event.clipboardData.files);
+                                if (files.some(file => file.type.startsWith('image/'))) {
+                                    event.preventDefault();
+                                    addImageFiles(files);
+                                }
+                            }}
+                            placeholder={waitingInput ? "选择上方选项，或输入自定义回复..." : "输入消息，或上传自动化截图..."}
                             autoSize={{minRows: 1, maxRows: 4}}
                             disabled={isLoading && !waitingInput}
                             style={{
-                                borderRadius: 'var(--radius-lg) 0 0 var(--radius-lg)',
+                                borderRadius: 0,
                                 color: 'var(--text-primary)',
                                 resize: 'none',
                             }}
@@ -774,7 +1073,7 @@ export default function Chat({
                                 type="primary"
                                 icon={<SendOutlined/>}
                                 htmlType="submit"
-                                disabled={!input.trim()}
+                                disabled={!input.trim() && pendingImages.length === 0}
                                 aria-label="发送消息"
                                 style={{
                                     borderRadius: '0 var(--radius-lg) var(--radius-lg) 0',

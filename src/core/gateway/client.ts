@@ -23,6 +23,32 @@ const DATA_TYPE = {
     ECJPAKE_ROUND_TWO: 33,
 } as const;
 
+function readGatewayErrorDetail(response: Buffer): string {
+    const payload = response.slice(1);
+    if (payload.length === 0) return '';
+
+    const text = payload.toString('utf8').replace(/[\u0000-\u001f\u007f]/g, ' ').trim();
+    if (!text) return '';
+
+    try {
+        const parsed = JSON.parse(text);
+        const detail = parsed?.message ?? parsed?.error?.message ?? parsed?.error ?? parsed?.code;
+        if (detail !== undefined && detail !== null) return String(detail).slice(0, 200);
+    } catch {
+    }
+    return text.slice(0, 200);
+}
+
+export function gatewayAuthResponseError(response: Buffer, expectedType: number, stage: string): Error {
+    if (response[0] === DATA_TYPE.ERROR) {
+        const detail = readGatewayErrorDetail(response);
+        return new Error(
+            `网关拒绝认证（${stage}）${detail ? `：${detail}` : ''}。请重新获取6位登录码，并确认应用设置中的网关型号和地址正确`
+        );
+    }
+    return new Error(`认证协议异常（${stage}）：期望消息类型 ${expectedType}，实际收到 ${response[0] ?? '空响应'}`);
+}
+
 class AESGCMCipher {
     private key: Buffer;
     private nonce: Buffer;
@@ -330,7 +356,7 @@ export class GatewayClient {
 
         let response = await this.recv();
         if (response[0] !== DATA_TYPE.SELECTED_PROTOCOL) {
-            throw new Error('Protocol selection failed');
+            throw gatewayAuthResponseError(response, DATA_TYPE.SELECTED_PROTOCOL, '协议选择');
         }
 
         const roundOne = jpake.writeRoundOne();
@@ -338,7 +364,7 @@ export class GatewayClient {
 
         response = await this.recv();
         if (response[0] !== DATA_TYPE.ECJPAKE_ROUND_ONE) {
-            throw new Error(`Unexpected response type: ${response[0]}`);
+            throw gatewayAuthResponseError(response, DATA_TYPE.ECJPAKE_ROUND_ONE, '密钥交换第一阶段');
         }
         jpake.readRoundOne(response.slice(1));
 
@@ -347,7 +373,7 @@ export class GatewayClient {
 
         response = await this.recv();
         if (response[0] !== DATA_TYPE.ECJPAKE_ROUND_TWO) {
-            throw new Error(`Unexpected response type: ${response[0]}`);
+            throw gatewayAuthResponseError(response, DATA_TYPE.ECJPAKE_ROUND_TWO, '密钥交换第二阶段');
         }
         const serverRoundTwo = response.slice(1);
 
@@ -366,7 +392,8 @@ export class GatewayClient {
                 this.cipherIn = new AESGCMCipher(serverKeyNonce.slice(0, 16), serverKeyNonce.slice(16, 24));
                 this.secureEstablished = true;
             }
-        } catch {
+        } catch (error) {
+            if (!(error instanceof Error && error.message === 'timeout')) throw error;
             const encrypted = sharedCipher.encrypt(myKeyNonce);
             await this.ws!.send(Buffer.concat([Buffer.from([DATA_TYPE.SESSION_KEY_EXCHANGE]), encrypted]));
             response = await this.recv();
@@ -375,6 +402,8 @@ export class GatewayClient {
                 this.cipherOut = new AESGCMCipher(myKeyNonce.slice(0, 16), myKeyNonce.slice(16, 24));
                 this.cipherIn = new AESGCMCipher(serverKeyNonce.slice(0, 16), serverKeyNonce.slice(16, 24));
                 this.secureEstablished = true;
+            } else {
+                throw gatewayAuthResponseError(response, DATA_TYPE.SESSION_KEY_EXCHANGE, '会话密钥交换');
             }
         }
 

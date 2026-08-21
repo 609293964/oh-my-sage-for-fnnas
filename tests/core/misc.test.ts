@@ -32,11 +32,26 @@ test('拒绝写 API', async () => {
     assert.equal(called, false);
 });
 
-test('允许已验证的 API 列表读取接口', async () => {
-    const gateway = gatewayWith((method) => method);
+test('getApiList 返回本地兼容接口清单而不调用不兼容的网关端点', async () => {
+    let called = false;
+    const gateway = gatewayWith(() => {
+        called = true;
+        return undefined;
+    });
     const result = await callGatewayApi(gateway, 'getApiList');
 
-    assert.deepEqual(result, {success: true, data: 'getApiList'});
+    assert.equal(result.success, true);
+    assert.equal(called, false);
+    if (result.success) {
+        const data = result.data as {
+            source: string;
+            gatewayQueried: boolean;
+            methods: string[];
+        };
+        assert.equal(data.source, 'local-compatibility-catalog');
+        assert.equal(data.gatewayQueried, false);
+        assert.equal(data.methods.includes('getDevList'), true);
+    }
 });
 
 test('网关异常转为失败响应', async () => {

@@ -26,6 +26,76 @@ test('Web Agent 公开独立 MIOT 能力预检工具', async () => {
     assert.equal(result.valid, true);
 });
 
+test('能力预检允许省略仅结构无关的图 cfg', async () => {
+    const gateway = {
+        async callApi(method: string): Promise<unknown> {
+            if (method === 'getVarList') return {};
+            throw new Error(`非预期调用：${method}`);
+        },
+    } as unknown as GatewayClient;
+    const tools = createCoreTools(gateway) as any;
+
+    const result = await tools.validate_graph_capabilities.execute({graph: {nodes: []}});
+
+    assert.equal(result.valid, true);
+});
+
+test('能力预检为缺少 cfg 的设备节点补齐真实 URN', async () => {
+    const gateway = {
+        async callApi(method: string): Promise<unknown> {
+            if (method === 'getDevList') return {
+                devList: {
+                    lamp: {name: '测试灯', model: 'test.lamp', modelName: '测试灯', online: true, roomName: '书房', urn: 'urn:test:lamp'},
+                },
+            };
+            throw new Error(`非预期调用：${method}`);
+        },
+    } as unknown as GatewayClient;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => new Response(JSON.stringify({
+        services: [{
+            iid: 2,
+            description: 'Light',
+            properties: [{iid: 1, description: 'Power', format: 'bool', access: ['write']}],
+        }],
+    }), {status: 200, headers: {'content-type': 'application/json'}});
+
+    try {
+        const tools = createCoreTools(gateway) as any;
+        const graph: any = {
+            id: '1',
+            nodes: [{id: 'power', type: 'deviceOutput', props: {did: 'lamp', siid: 2, piid: 1, value: true}, inputs: {trigger: null}, outputs: {output: []}}],
+            cfg: {},
+        };
+        const result = await tools.validate_graph_capabilities.execute({graph});
+
+        assert.equal(result.valid, true);
+        assert.equal(graph.nodes[0].cfg.urn, 'urn:test:lamp');
+    } finally {
+        globalThis.fetch = originalFetch;
+    }
+});
+
+test('设备列表读取失败时能力预检返回结构化错误', async () => {
+    const gateway = {
+        async callApi(method: string): Promise<unknown> {
+            if (method === 'getDevList') throw new Error('gateway offline');
+            throw new Error(`非预期调用：${method}`);
+        },
+    } as unknown as GatewayClient;
+    const tools = createCoreTools(gateway) as any;
+    const result = await tools.validate_graph_capabilities.execute({
+        graph: {
+            id: '1',
+            nodes: [{id: 'power', type: 'deviceOutput', props: {did: 'lamp', siid: 2, piid: 1, value: true}, inputs: {trigger: null}, outputs: {output: []}}],
+            cfg: {},
+        },
+    });
+
+    assert.equal(result.valid, false);
+    assert.equal(result.errors[0].type, 'device_list_unavailable');
+});
+
 test('网页端 create_graph 透传本规则变量定义', async () => {
     const calls: Array<{method: string; params: any}> = [];
     const variables: Record<string, any> = {};

@@ -52,3 +52,14 @@ test('Web validate_graph 仍拒绝 output2 连接状态节点', async () => {
     assert.equal(result.valid, false);
     assert.equal(result.errors.some((error: {type: string}) => error.type === 'output2_to_state'), true);
 });
+
+test('Web validate_graph 缺少顶层 cfg 时仍返回节点结构错误', async () => {
+    const tools = createCoreTools({} as GatewayClient) as any;
+    const result = await tools.validate_graph.execute({
+        nodes: [{id: 'incomplete', type: 'deviceInput', cfg: {name: 'deviceInput', version: 1}}],
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(result.valid, false);
+    assert.equal(result.errors.some((error: {type: string}) => error.type === 'missing_props'), true);
+});

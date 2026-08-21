@@ -14,15 +14,30 @@ test('Web Agent 可以调用白名单内的原始读取 API', async () => {
     const tools = createCoreTools(gateway) as any;
 
     const result = await tools.call_gateway_api.execute({
-        method: 'getApiList',
-        params: {},
+        method: 'getLog',
+        params: {num: 0},
         timeout: 3210,
     });
 
     assert.deepEqual(result, {
         success: true,
-        data: {method: 'getApiList', params: {}, timeout: 3210},
+        data: {method: 'getLog', params: {num: 0}, timeout: 3210},
     });
+});
+
+test('Web Agent 将 getApiList 映射为本地兼容接口清单', async () => {
+    let called = false;
+    const gateway = gatewayWith(() => {
+        called = true;
+        return undefined;
+    });
+    const tools = createCoreTools(gateway) as any;
+
+    const result = await tools.call_gateway_api.execute({method: 'getApiList', params: {}, timeout: 3210});
+
+    assert.equal(result.success, true);
+    assert.equal(called, false);
+    if (result.success) assert.equal(result.data.source, 'local-compatibility-catalog');
 });
 
 test('Web Agent 无法绕过原始 API 的只读白名单', async () => {

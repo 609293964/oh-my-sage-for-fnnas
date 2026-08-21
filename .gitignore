@@ -1,5 +1,7 @@
-# Dependencies
+# Dependencies and package-manager caches
 node_modules/
+.pnpm-store/
+.npm/
 .pnp
 .pnp.js
 
@@ -24,9 +26,10 @@ yarn-debug.log*
 yarn-error.log*
 .tmp-fpk-test/
 
-# Local env files
+# Local env files and secrets
 .env*
 !.env.example
+!.env.*.example
 
 # Vercel
 .vercel
@@ -37,6 +40,13 @@ next-env.d.ts
 
 # Session storage
 .sessionstore/
+sessionstore/
+
+# Local runtime data and logs
+*.log
+logs/
+tmp/
+temp/
 
 # fnOS packaging output
 *.fpk
@@ -44,14 +54,15 @@ fnpack.exe
 fnnas.mijia-geek-ai/app/server/
 fnnas.mijia-geek-ai/*.fpk
 
+# Local packaging/test scratch
+.tmp-fpk-test/
+*.tgz
+
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
-
-# Local agent instructions
-AGENTS.md
 
 # OS
 Thumbs.db

@@ -40,6 +40,7 @@ export interface ToolCall {
     args: any;
     result: any;
     success: boolean;
+    durationMs?: number;
 }
 
 /**

@@ -17,6 +17,7 @@ metadata:
 | 问题 | 模式 |
 |---|---|
 | 需要跨事件记住值、模式或时间点 | `PAT-STATE-01` |
+| 需要手动开灯常亮、自动开灯自动关（手动优先） | `PAT-STATE-02` |
 | 需要计算、映射、取整、量化或夹紧 | `PAT-NUM-01` |
 | 需要多源汇总、任一/全部或至少 k 个 | `PAT-AGG-01` |
 | 需要日期、时长、时间窗口或节律 | `PAT-TIME-01` |
@@ -118,7 +119,9 @@ video → ui-sample → graph-diff → local-tested → gateway-roundtrip → ru
 7. **dtype 映射**：`bool`→`boolean`，`uint8`/`int32`→`int`，`float`→`float`
 8. **props 必须存在**：`"props": {}` 不能省略
 9. **cfg.name**：值为节点类型名（如 `"deviceInput"`）
-10. **cfg.unit/value**：delay 节点的 `cfg.unit` 和 `cfg.value` 是可选的（UI 显示用）
+11. **状态持续首选 statusLast**：凡是“状态维持/有人超过N秒/开门超过N秒”等持续状态需求，网关层必须首选 `statusLast` 节点（状态输入持续满 timeout 毫秒触发，中途状态反转自动复位重置）。严禁使用 `deviceInput -> delay -> deviceGet` 伪持续轮询
+12. **硬件原生时长与量程对齐**：设备 MIOT Spec 包含原生持续时长属性（如 `no_motion_duration`）且用户需求符合量程（如分钟级）时，优先采用原生属性；若用户需求为秒级（如 5s/10s/30s）而设备仅支持分钟级，必须采用 `statusLast` 并主动向用户说明
+13. **delay 与 statusLast 语义隔离**：`delay` 仅用于动作发生后的无条件延时等待（如开灯后延时 5 秒关灯），不可用于状态持续判定
 
 ## inputs/outputs 工作机制
 
@@ -175,6 +178,7 @@ video → ui-sample → graph-diff → local-tested → gateway-roundtrip → ru
 |---|---|
 | 业务触发 | 哪个瞬时事件启动流程 |
 | 持续状态 | 判断时读取哪些状态，值是否可能陈旧 |
+| 设备属性与单位 | 是否有原生持续时长属性；SIID/PIID/unit/range 与需求是否匹配 |
 | 分支 | true / false 分别做什么；unknown 如何识别和降级 |
 | 变量 | ID、类型、初值、生产者、清理时机 |
 | 状态转换 | 当前状态、允许的下一状态、异常兜底 |
@@ -313,10 +317,11 @@ MCP 模式下**创建**超过 10 个节点的复杂规则时，不要调用两�
 {"id":"$ID","type":"onLoad","cfg":{"name":"onLoad","version":1},"props":{},"inputs":{},"outputs":{"output":["$NEXT.trigger"]}}
 ```
 
-### statusLast - 状态持续一段时间
+### statusLast - 状态持续一段时间（状态维持）
 ```json
 {"id":"$ID","type":"statusLast","cfg":{"name":"statusLast","version":1},"props":{"timeout":$MS},"inputs":{"input":null},"outputs":{"output":["$NEXT.trigger"]}}
 ```
+⚠️ `inputs` 必须是 `input`，接收状态输入（如设备属性判定、`condition` 等）。`props.timeout` 为持续毫秒数（如 5000 表示 5 秒）。当输入状态持续为 true 达到设定毫秒时发出事件触发；**若中途状态反转（变为 false），计时自动重置复位**。这是网关层处理秒级持续状态（有人持续、开门持续等）的标准首选节点。
 
 ### eventSequence - 事件先后发生
 ```json

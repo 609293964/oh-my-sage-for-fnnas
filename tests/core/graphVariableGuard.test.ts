@@ -210,12 +210,12 @@ test('固定规则 ID 被其他规则占用时拒绝覆盖', async () => {
 });
 
 test('更新规则保留传入的卡片坐标和尺寸', async () => {
-    let saved: { nodes: Array<{ cfg: { pos?: unknown } }> } | undefined;
+    let saved: any;
     const gateway = {
         async callApi(method: string, input: unknown): Promise<unknown> {
-            if (method === 'getGraph') return { id: '1', nodes: [], cfg: { enable: true } };
+            if (method === 'getGraph') return saved || { id: '1', nodes: [], cfg: { enable: true } };
             if (method === 'getGraphList') return [{ id: '1', userData: { name: 'Layout' } }];
-            if (method === 'setGraph') saved = input as typeof saved;
+            if (method === 'setGraph') saved = input;
             return undefined;
         },
     } as unknown as GatewayClient;
@@ -230,13 +230,13 @@ test('更新规则保留传入的卡片坐标和尺寸', async () => {
 });
 
 test('更新节点未携带坐标时按节点 ID 继承原坐标', async () => {
-    let saved: { nodes: Array<{ cfg: { pos?: unknown } }> } | undefined;
+    let saved: any;
     const pos = { x: 321, y: 654, width: 450, height: 206 };
     const gateway = {
         async callApi(method: string, input: unknown): Promise<unknown> {
-            if (method === 'getGraph') return { id: '1', nodes: [{ id: 'start', cfg: { pos } }], cfg: { enable: false } };
+            if (method === 'getGraph') return saved || { id: '1', nodes: [{ id: 'start', cfg: { pos } }], cfg: { enable: false } };
             if (method === 'getGraphList') return [{ id: '1', userData: { name: 'Layout' } }];
-            if (method === 'setGraph') saved = input as typeof saved;
+            if (method === 'setGraph') saved = input;
             return undefined;
         },
     } as unknown as GatewayClient;
@@ -250,12 +250,13 @@ test('更新节点未携带坐标时按节点 ID 继承原坐标', async () => {
 });
 
 test('更新规则未指定 enable 时保留禁用状态', async () => {
-    let saved: { cfg: { enable: boolean } } | undefined;
+    let saved: any;
+    const nodes = [{ id: 'start', type: 'onLoad', cfg: {}, props: {}, inputs: {}, outputs: { output: [] } }];
     const gateway = {
         async callApi(method: string, input: unknown): Promise<unknown> {
-            if (method === 'getGraph') return { id: '1', nodes: [], cfg: { enable: false } };
+            if (method === 'getGraph') return saved || { id: '1', nodes, cfg: { enable: false } };
             if (method === 'getGraphList') return [{ id: '1', userData: { name: 'Disabled' } }];
-            if (method === 'setGraph') saved = input as typeof saved;
+            if (method === 'setGraph') saved = input;
             return undefined;
         },
     } as unknown as GatewayClient;
@@ -267,12 +268,13 @@ test('更新规则未指定 enable 时保留禁用状态', async () => {
 });
 
 test('更新旧规则缺少 cfg 时从列表保留启用状态', async () => {
-    let saved: { cfg: { enable: boolean } } | undefined;
+    let saved: any;
+    const nodes = [{ id: 'start', type: 'onLoad', cfg: {}, props: {}, inputs: {}, outputs: { output: [] } }];
     const gateway = {
         async callApi(method: string, input: unknown): Promise<unknown> {
-            if (method === 'getGraph') return { id: '1', nodes: [] };
+            if (method === 'getGraph') return saved || { id: '1', nodes };
             if (method === 'getGraphList') return [{ id: '1', enable: true, userData: { name: 'Legacy' } }];
-            if (method === 'setGraph') saved = input as typeof saved;
+            if (method === 'setGraph') saved = input;
             return undefined;
         },
     } as unknown as GatewayClient;
@@ -281,6 +283,29 @@ test('更新旧规则缺少 cfg 时从列表保留启用状态', async () => {
 
     assert.equal(result.success, true);
     assert.equal(saved?.cfg.enable, true);
+});
+
+test('更新规则写入后回读不一致时不报告成功', async () => {
+    const calls: string[] = [];
+    const nodes = [{ id: 'start', type: 'onLoad', cfg: {}, props: {}, inputs: {}, outputs: { output: [] } }];
+    const gateway = {
+        async callApi(method: string): Promise<unknown> {
+            calls.push(method);
+            if (method === 'getGraph') {
+                return calls.filter((call) => call === 'getGraph').length === 1
+                    ? { id: '1', nodes, cfg: { enable: true } }
+                    : { id: '1', nodes, cfg: { enable: false } };
+            }
+            if (method === 'getGraphList') return [{ id: '1', enable: true, userData: { name: 'Verification' } }];
+            return undefined;
+        },
+    } as unknown as GatewayClient;
+
+    const result = await updateGraph(gateway, '1', { enable: true });
+
+    assert.equal(result.success, false);
+    assert.match('error' in result ? result.error : '', /写入结果未确认.*启用状态不一致/);
+    assert.deepEqual(calls, ['getGraph', 'getGraphList', 'setGraph', 'getGraph']);
 });
 
 test('创建规则一次登记本规则变量并替换 rule 作用域', async () => {

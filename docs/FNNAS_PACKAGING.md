@@ -5,16 +5,18 @@ This project is packaged as a fnOS Native application that runs the Next.js stan
 ## Build Flow
 
 ```bash
-npm run build
-npm run prepare:fpk
-fnpack build -d fnnas.mijia-geek-ai
-```
-
-Or, when `fnpack` is installed:
-
-```bash
 npm run build:fpk
 ```
+
+Or run the stages separately:
+
+```bash
+npm run build
+npm run prepare:fpk
+npm run pack:fpk
+```
+
+The packer is built into the project and writes normalized Linux permissions and the `app.tgz` MD5 checksum. On Windows, the build wrapper dereferences pnpm links while Next.js creates the standalone directory, avoiding a second dependency installation.
 
 ## Runtime Notes
 

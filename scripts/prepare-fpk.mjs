@@ -11,6 +11,11 @@ const standaloneDir = path.join(root, '.next', 'standalone');
 const staticDir = path.join(root, '.next', 'static');
 const publicDir = path.join(root, 'public');
 const agentsDir = path.join(root, '.agents');
+const packageJsonPath = path.join(root, 'package.json');
+const manifestPaths = [
+    path.join(packDir, 'manifest'),
+    path.join(packDir, 'building', 'manifest'),
+];
 
 function assertExists(target, message) {
     if (!fs.existsSync(target)) {
@@ -23,6 +28,21 @@ function copyIfExists(source, destination) {
         fs.cpSync(source, destination, { recursive: true, force: true });
     }
 }
+
+function syncManifestVersion(manifestPath, version) {
+    const manifest = fs.readFileSync(manifestPath, 'utf8');
+    if (!/^version\s*=.*$/m.test(manifest)) {
+        throw new Error(`Missing version field in ${path.relative(root, manifestPath)}`);
+    }
+    const synced = manifest.replace(/^version\s*=.*$/m, `version=${version}`);
+    if (synced !== manifest) fs.writeFileSync(manifestPath, synced);
+}
+
+const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+if (typeof packageJson.version !== 'string' || !/^\d+\.\d+\.\d+$/.test(packageJson.version)) {
+    throw new Error('package.json version must use semantic version format, for example 0.0.4');
+}
+for (const manifestPath of manifestPaths) syncManifestVersion(manifestPath, packageJson.version);
 
 assertExists(
     standaloneDir,

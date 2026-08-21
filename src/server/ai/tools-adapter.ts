@@ -93,10 +93,10 @@ export function createCoreTools(gateway: GatewayClient) {
         }),
 
         ask_user: defineTool({
-            description: '仅用于需要用户选择或确认时。简单任务不要使用。',
+            description: '向用户呈现交互式选择方案或确认对话框。当为用户设计了 2-3 个方案（如方案1、方案2）、或需要用户做选择/确认时，必须调用此工具将选项展示为前端可点击按钮，严禁仅在普通回复文本中输出选项列表。',
             parameters: z.object({
-                question: z.string().describe('问题内容'),
-                options: z.array(z.string()).describe('选项列表'),
+                question: z.string().describe('问题或方案详细说明'),
+                options: z.array(z.string()).describe('可点击的选项列表，如 ["方案1: ...", "方案2: ..."]'),
                 needConfirm: z.boolean().optional().describe('是否需要确认'),
             }),
             execute: async ({question, options, needConfirm}) => {
@@ -129,9 +129,9 @@ export function createCoreTools(gateway: GatewayClient) {
         }),
 
         call_gateway_api: defineTool({
-            description: '仅在用户明确要求排障、发现网关接口或查询未被专用工具覆盖的只读数据时使用。只能调用已验证的只读 API；写入、删除和未知方法会被拒绝。',
+            description: '仅在用户明确要求排障、发现网关接口或查询未被专用工具覆盖的只读数据时使用。优先使用设备、规则、变量等专用工具；getApiList 是兼容别名，返回本应用已验证的接口清单，不会请求网关。写入、删除和未知方法会被拒绝。',
             parameters: z.object({
-                method: z.string().describe('已验证的只读网关 API 方法名，例如 getApiList、getLog、getVarScopeList'),
+                method: z.string().describe('已验证的只读网关 API 方法名，例如 getLog、getVarScopeList；getApiList 返回本地兼容接口清单'),
                 params: z.record(z.unknown()).default({}).describe('API 参数对象'),
                 timeout: z.number().int().min(1000).max(10000).default(10000).describe('超时时间（毫秒）'),
             }),
@@ -263,7 +263,7 @@ export function createCoreTools(gateway: GatewayClient) {
         }),
 
         validate_graph: defineTool({
-            description: '校验规则连接完整性',
+            description: '校验规则连接完整性。传入完整候选图的 nodes；cfg 可省略（仅作结构预检时会使用安全草稿 cfg），但创建或更新前仍必须对完整候选图做校验。',
             parameters: z.object({
                 nodes: z.array(z.any()).describe('节点列表'),
                 cfg: z.object({
@@ -275,10 +275,20 @@ export function createCoreTools(gateway: GatewayClient) {
                         lastUpdateTime: z.number(),
                         transform: z.object({x: z.number(), y: z.number(), scale: z.number(), rotate: z.number()}),
                     }),
-                }),
+                }).optional().describe('完整候选图的 cfg；仅结构预检时可省略'),
             }),
             execute: async ({nodes, cfg}) => {
-                const graph = {id: cfg.id, nodes, cfg};
+                const resolvedCfg = cfg || {
+                    id: 'validation-draft',
+                    enable: false,
+                    uiType: 'graph',
+                    userData: {
+                        name: '结构校验草稿',
+                        lastUpdateTime: Date.now(),
+                        transform: {x: 0, y: 0, scale: 1, rotate: 0},
+                    },
+                };
+                const graph = {id: resolvedCfg.id, nodes, cfg: resolvedCfg};
                 const errors = validateGraph(graph as any);
 
                 if (errors.length === 0) {
@@ -305,11 +315,15 @@ export function createCoreTools(gateway: GatewayClient) {
         }),
 
         validate_graph_capabilities: defineTool({
-            description: '根据真实 MIOT Spec 校验规则中的设备能力和变量引用',
+            description: '根据真实 MIOT Spec 校验完整候选图中的设备能力和变量引用。空图通过仅表示没有设备引用可检查，不能据此跳过候选图校验。',
             parameters: z.object({
-                graph: z.object({id: z.string(), nodes: z.array(z.any()), cfg: z.any()}),
+                graph: z.object({id: z.string().optional(), nodes: z.array(z.any()), cfg: z.any().optional()}),
             }),
-            execute: async ({graph}) => validateGraphCapabilitiesWithGateway(gateway, graph as any),
+            execute: async ({graph}) => validateGraphCapabilitiesWithGateway(gateway, {
+                id: graph.id || 'validation-draft',
+                nodes: graph.nodes,
+                cfg: graph.cfg || {},
+            } as any),
         }),
 
         activate_skill: defineTool({

@@ -20,10 +20,21 @@ function replaceRuleScope(value: unknown, scope: string): unknown {
 }
 
 function comparableNodes(nodes: Graph['nodes']): unknown {
-    return nodes.map((node) => {
+    return [...nodes].sort((left, right) => left.id.localeCompare(right.id)).map((node) => {
         const { pos: _pos, ...cfg } = node.cfg || {};
         return { ...node, cfg };
     });
+}
+
+function verifyUpdatedGraph(expected: Graph, actual: Graph): string | undefined {
+    if (!actual || actual.id !== expected.id) return `回读规则 ID 不一致，期望 ${expected.id}`;
+    if (actual.cfg?.enable !== expected.cfg.enable) {
+        return `回读规则启用状态不一致，期望 ${expected.cfg.enable ? '启用' : '禁用'}`;
+    }
+    if (!Array.isArray(actual.nodes) || JSON.stringify(comparableNodes(actual.nodes)) !== JSON.stringify(comparableNodes(expected.nodes))) {
+        return '回读规则节点与提交内容不一致';
+    }
+    return undefined;
 }
 
 function isSetupShell(graph: Graph): boolean {
@@ -298,19 +309,25 @@ export async function updateGraph(gateway: GatewayClient, id: string, input: Upd
             },
         };
 
-        if (input.nodes) {
-            const errors = validateGraph(graph);
-            const errorList = errors.filter((e: { level: string }) => e.level === 'error');
-            if (errorList.length > 0) {
-                return { success: false, error: `规则校验失败（${errorList.length} 个错误），请修复后重试` };
-            }
-            const capabilityReport = await validateGraphCapabilitiesWithGateway(gateway, graph);
-            if (!capabilityReport.valid) return { success: false, error: `规则能力校验失败: ${capabilityReport.errors.map((item) => item.message).join('；')}` };
+        // 无论更新的是节点、名称还是启用状态，都校验完整候选图。
+        // 空图通过只代表没有设备引用可检查，不能据此跳过真实候选图的校验。
+        const errors = validateGraph(graph);
+        const errorList = errors.filter((e: { level: string }) => e.level === 'error');
+        if (errorList.length > 0) {
+            return { success: false, error: `规则校验失败（${errorList.length} 个错误），请修复后重试` };
         }
+        const capabilityReport = await validateGraphCapabilitiesWithGateway(gateway, graph);
+        if (!capabilityReport.valid) return { success: false, error: `规则能力校验失败: ${capabilityReport.errors.map((item) => item.message).join('；')}` };
 
         await gateway.callApi('setGraph', graph, 10000);
 
-        return { success: true, message: `规则 ${id} 更新成功` };
+        const savedGraph = await gateway.callApi<Graph>('getGraph', { id }, 10000);
+        const verificationError = verifyUpdatedGraph(graph, savedGraph);
+        if (verificationError) {
+            return { success: false, error: `规则已提交，但写入结果未确认：${verificationError}` };
+        }
+
+        return { success: true, data: { graphId: id }, message: `规则 ${id} 更新成功，已回读确认` };
     } catch (error) {
         return { success: false, error: `更新规则失败: ${error}` };
     }

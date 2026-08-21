@@ -13,6 +13,9 @@ assert.equal(invalid.valid, false);
 assert.match(invalid.errors[0].message, /枚举字段/);
 const valid = validateGraphCapabilities([{ ...base, props: { did: 'sensor', siid: 2, piid: 2, dtype: 'int', operator: 'include', v1: [2] } }], new Map([['sensor', device]]));
 assert.equal(valid.valid, true);
+const withoutCfg = validateGraphCapabilities([{ ...base, cfg: undefined, props: { did: 'sensor', siid: 2, piid: 2, dtype: 'int', operator: 'include', v1: [2] } } as any], new Map([['sensor', device]]));
+assert.equal(withoutCfg.valid, true);
+assert.equal(validateGraphCapabilities([{ ...base, cfg: undefined, props: undefined } as any], new Map([['sensor', device]])).errors[0].type, 'missing_props');
 const speaker = {
   urn: 'urn:test:speaker',
   properties: [],

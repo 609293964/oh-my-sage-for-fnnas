@@ -1,11 +1,12 @@
 {
   "name": "mijia-geek-ai",
-  "version": "0.0.3",
+  "version": "0.0.8",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node scripts/build-next.mjs",
     "prepare:fpk": "node scripts/prepare-fpk.mjs",
-    "build:fpk": "npm run build && npm run prepare:fpk && fnpack build -d fnnas.mijia-geek-ai",
+    "pack:fpk": "node scripts/pack-fpk.mjs",
+    "build:fpk": "node scripts/build-next.mjs && node scripts/prepare-fpk.mjs && node scripts/pack-fpk.mjs",
     "start": "next start",
     "lint": "next lint",
     "test": "npx tsx src/test.ts",

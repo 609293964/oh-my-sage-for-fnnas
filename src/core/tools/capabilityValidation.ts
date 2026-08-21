@@ -26,8 +26,22 @@ interface VariableReference {
     expectedType?: 'number' | 'string';
 }
 
+const DEVICE_NODE_TYPES = new Set([
+    'deviceInput',
+    'deviceGet',
+    'deviceOutput',
+    'deviceInputSetVar',
+    'deviceGetSetVar',
+]);
+
+function asRecord(value: unknown): Record<string, unknown> {
+    return value !== null && typeof value === 'object' && !Array.isArray(value)
+        ? value as Record<string, unknown>
+        : {};
+}
+
 function error(node: GraphNode, type: string, message: string): ValidationError {
-    return { nodeId: node.id, type, level: 'error', message };
+    return { nodeId: typeof node?.id === 'string' ? node.id : '(unknown)', type, level: 'error', message };
 }
 
 function graphDtypeMatches(miot: string, graph: unknown, setVar: boolean): boolean {
@@ -119,22 +133,24 @@ function variableReferences(nodes: GraphNode[]): VariableReference[] {
     };
 
     for (const node of nodes) {
-        const declaredType = node.props.varType === 'string' || node.props.dtype === 'string' ? 'string' : 'number';
+        if (!node || typeof node !== 'object') continue;
+        const props = asRecord(node.props);
+        const declaredType = props.varType === 'string' || props.dtype === 'string' ? 'string' : 'number';
         const resultType = node.type === 'varSetString' ? 'string' : ['varSetNumber', 'deviceInputSetVar', 'deviceGetSetVar', 'varChange', 'varGet'].includes(node.type) ? declaredType : undefined;
-        if (resultType) add(node, node.props, resultType);
-        if (node.type === 'deviceOutput' && typeof node.props.aiid !== 'number') {
-            const dtype = node.props.dtype;
-            add(node, node.props, dtype === 'string' ? 'string' : dtype === 'number' ? 'number' : undefined);
+        if (resultType) add(node, props, resultType);
+        if (node.type === 'deviceOutput' && typeof props.aiid !== 'number') {
+            const dtype = props.dtype;
+            add(node, props, dtype === 'string' ? 'string' : dtype === 'number' ? 'number' : undefined);
         }
-        if (node.type === 'deviceOutput' && Array.isArray(node.props.ins)) for (const input of node.props.ins) {
+        if (node.type === 'deviceOutput' && Array.isArray(props.ins)) for (const input of props.ins) {
             const dtype = input && typeof input === 'object' ? (input as Record<string, unknown>).dtype : undefined;
             add(node, input, dtype === 'string' ? 'string' : dtype === 'number' ? 'number' : undefined);
         }
-        if (node.type === 'deviceInputSetVar' && Array.isArray(node.props.arguments)) for (const argument of node.props.arguments) {
+        if (node.type === 'deviceInputSetVar' && Array.isArray(props.arguments)) for (const argument of props.arguments) {
             const dtype = argument && typeof argument === 'object' ? (argument as Record<string, unknown>).dtype : undefined;
             add(node, argument, dtype === 'string' ? 'string' : 'number');
         }
-        if (Array.isArray(node.props.elements)) for (const element of node.props.elements) {
+        if (Array.isArray(props.elements)) for (const element of props.elements) {
             if (element && typeof element === 'object' && (element as Record<string, unknown>).type === 'var') add(node, element, node.type === 'varSetNumber' ? 'number' : undefined);
         }
     }
@@ -172,12 +188,21 @@ export function validateGraphCapabilities(nodes: GraphNode[], devices: Map<strin
     const errors: ValidationError[] = [];
     const warnings: ValidationError[] = [];
     for (const node of nodes) {
-        if (!['deviceInput', 'deviceGet', 'deviceOutput', 'deviceInputSetVar', 'deviceGetSetVar'].includes(node.type)) continue;
-        const props = node.props;
+        if (!node || typeof node !== 'object') {
+            errors.push({ nodeId: '(unknown)', type: 'invalid_node', level: 'error', message: '节点格式错误' });
+            continue;
+        }
+        if (!DEVICE_NODE_TYPES.has(node.type)) continue;
+        const props = asRecord(node.props);
+        if (Object.keys(props).length === 0) {
+            errors.push(error(node, 'missing_props', '设备节点缺少 props'));
+            continue;
+        }
         const did = props.did;
         if (typeof did !== 'string' || !devices.has(did)) { errors.push(error(node, 'unknown_device', `找不到设备 ${String(did)}`)); continue; }
         const device = devices.get(did)!;
-        if (node.cfg.urn !== device.urn) { errors.push(error(node, 'urn_mismatch', `节点 URN 与设备 ${did} 的 URN 不一致`)); continue; }
+        const nodeUrn = asRecord(node.cfg).urn;
+        if (typeof nodeUrn === 'string' && nodeUrn.length > 0 && nodeUrn !== device.urn) { errors.push(error(node, 'urn_mismatch', `节点 URN 与设备 ${did} 的 URN 不一致`)); continue; }
         const siid = props.siid;
         if (typeof siid !== 'number') { errors.push(error(node, 'missing_siid', '缺少 siid')); continue; }
         if ((node.type === 'deviceInput' || node.type === 'deviceInputSetVar') && typeof props.eiid === 'number') {
@@ -232,18 +257,48 @@ export function validateGraphCapabilities(nodes: GraphNode[], devices: Map<strin
 }
 
 export async function validateGraphCapabilitiesWithGateway(gateway: GatewayClient, graph: Graph): Promise<CapabilityValidationReport> {
-    const dids = [...new Set(graph.nodes.map((node) => node.props.did).filter((did): did is string => typeof did === 'string'))];
-    const response = dids.length > 0
-        ? await gateway.callApi<DeviceListResponse>('getDevList', {}, 10000)
-        : { devList: {} };
+    const nodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
+    const dids = [...new Set(nodes
+        .map((node) => node && typeof node === 'object' ? asRecord(node.props).did : undefined)
+        .filter((did): did is string => typeof did === 'string'))];
     const specs = new Map<string, DeviceCapabilities>();
     const errors: ValidationError[] = [];
+    let devList: DeviceListResponse['devList'] = {};
+    if (dids.length > 0) {
+        try {
+            const response = await gateway.callApi<DeviceListResponse>('getDevList', {}, 10000);
+            devList = response?.devList && typeof response.devList === 'object' ? response.devList : {};
+        } catch (cause) {
+            const variableErrors = await validateGraphVariablesWithGateway(gateway, nodes);
+            return {
+                valid: false,
+                errors: [{ nodeId: '(graph)', type: 'device_list_unavailable', level: 'error', message: `无法读取设备列表: ${String(cause)}` }, ...variableErrors],
+                warnings: [],
+                inspectedDids: [],
+                inspectedUrns: [],
+            };
+        }
+    }
+
+    for (const node of nodes) {
+        if (!node || typeof node !== 'object' || !DEVICE_NODE_TYPES.has(node.type)) continue;
+        const did = asRecord(node.props).did;
+        const device = typeof did === 'string' ? devList[did] : undefined;
+        if (!device?.urn) continue;
+        const cfg = asRecord(node.cfg);
+        if (typeof cfg.urn !== 'string' || cfg.urn.length === 0) {
+            node.cfg = { ...cfg, urn: device.urn };
+        }
+    }
+
     for (const did of dids) {
-        const device = response.devList?.[did];
+        const device = devList[did];
         if (!device?.urn) { errors.push({ nodeId: '(graph)', type: 'unknown_device', level: 'error', message: `设备 ${did} 缺少本地 URN` }); continue; }
         if (!specs.has(device.urn)) {
             try {
-                const result = await fetch(`https://miot-spec.org/miot-spec-v2/instance?type=${encodeURIComponent(device.urn)}`);
+                const result = await fetch(`https://miot-spec.org/miot-spec-v2/instance?type=${encodeURIComponent(device.urn)}`, {
+                    signal: AbortSignal.timeout(10000),
+                });
                 if (!result.ok) throw new Error(`HTTP ${result.status}`);
                 const normalized = normalizeMiotSpec(await result.json() as { services?: Array<never> });
                 specs.set(device.urn, { urn: device.urn, properties: normalized.properties || [], events: normalized.events || [], actions: (normalized.actions || []).flatMap((action) => action.type === 'action' && typeof action.aiid === 'number' ? [{ siid: action.siid, aiid: action.aiid, desc: action.desc, in: action.in || [] }] : []) });
@@ -254,11 +309,11 @@ export async function validateGraphCapabilitiesWithGateway(gateway: GatewayClien
     }
     const devices = new Map<string, DeviceCapabilities>();
     for (const did of dids) {
-        const device = response.devList?.[did];
+        const device = devList[did];
         if (device?.urn && specs.has(device.urn)) devices.set(did, specs.get(device.urn)!);
     }
-    const report = validateGraphCapabilities(graph.nodes, devices);
-    report.errors.push(...await validateGraphVariablesWithGateway(gateway, graph.nodes));
+    const report = validateGraphCapabilities(nodes, devices);
+    report.errors.push(...await validateGraphVariablesWithGateway(gateway, nodes));
     report.errors.unshift(...errors);
     report.valid = report.errors.length === 0;
     return report;
